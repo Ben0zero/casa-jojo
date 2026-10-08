@@ -1,5 +1,0 @@
-<resources>
-    <style name="Theme.CasaJojo" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/white</item>
-    </style>
-</resources>
