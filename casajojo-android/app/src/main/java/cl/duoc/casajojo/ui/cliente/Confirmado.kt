@@ -15,6 +15,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,13 +32,23 @@ import cl.duoc.casajojo.ui.formato.money
 import cl.duoc.casajojo.ui.formato.textoEstadoPago
 import cl.duoc.casajojo.ui.formato.textoEstadoPedido
 
+/**
+ * PASO 5 — Confirmación.
+ * Se llega aquí después de que el ViewModel guardó el pedido en Room.
+ * Muestra el número asignado y un resumen leído desde la base de datos.
+ */
 @Composable
 fun ViewConfirmado(
     vm: ClienteViewModel,
     onConsultar: () -> Unit,
     onOtroPedido: () -> Unit,
 ) {
-    val pedido = vm.ultimoPedido.value?.pedido
+    // CORRECCIÓN: igual que en Home, nos suscribimos al Flow con collectAsState()
+    // para que Room entregue el pedido recién guardado. Antes se mostraba "…".
+    val ultimoPedido by vm.ultimoPedido.collectAsState()
+    val pedido = ultimoPedido?.pedido
+    val platos = ultimoPedido?.platos.orEmpty()
+
     Pantalla {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -59,6 +71,8 @@ fun ViewConfirmado(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 15.sp,
             )
+            // ultimoNumero lo deja el ViewModel apenas termina de guardar, así que
+            // el número aparece de inmediato aunque Room aún no haya emitido.
             Text(
                 "#${vm.ultimoNumero ?: "…"}",
                 fontSize = 44.sp,
@@ -89,7 +103,6 @@ fun ViewConfirmado(
                         "Retiro a las ${pedido?.horaRetiro ?: "…"} h",
                         fontSize = 16.sp,
                     )
-                    val platos = vm.ultimoPedido.value?.platos.orEmpty()
                     if (platos.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
                         Text(

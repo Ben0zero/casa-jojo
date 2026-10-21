@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** Pruebas unitarias de las reglas de negocio (no necesitan emulador). */
 class ReglasPedidoTest {
 
     @Test
@@ -45,5 +46,28 @@ class ReglasPedidoTest {
     @Test
     fun `Solo proteina no exige acompanamientos`() {
         assertNull(ReglasPedido.validarAcompanamientos(true, emptyList()))
+    }
+
+    // ---------- NUEVOS: validaciones agregadas en esta corrección ----------
+
+    @Test
+    fun `Carrito vacio no se puede confirmar`() {
+        assertEquals("Agrega al menos un plato a tu pedido", ReglasPedido.validarCarrito(emptyList()))
+    }
+
+    @Test
+    fun `Carrito con un plato es valido`() {
+        val platos = listOf(PlatoDraft(nombreProteina = "Guatitas", precio = 4600, solo = false, acompanamientos = listOf("Arroz")))
+        assertNull(ReglasPedido.validarCarrito(platos))
+    }
+
+    @Test
+    fun `Nombre en blanco no es valido`() {
+        assertEquals("Escribe tu nombre para el retiro", ReglasPedido.validarNombre("   "))
+    }
+
+    @Test
+    fun `Nombre con texto es valido`() {
+        assertNull(ReglasPedido.validarNombre("Nicolás"))
     }
 }

@@ -30,6 +30,12 @@ import cl.duoc.casajojo.ui.formato.money
 import cl.duoc.casajojo.ui.formato.textoEstadoPago
 import cl.duoc.casajojo.ui.formato.textoEstadoPedido
 
+/**
+ * PASO 6 — Mi pedido (RF-19: consultar estado).
+ * Muestra el último pedido guardado en este dispositivo. Como está conectado
+ * a Room mediante un Flow, si el estado cambia en la base de datos la
+ * pantalla se actualiza sola.
+ */
 @Composable
 fun ViewMiPedido(
     vm: ClienteViewModel,
@@ -37,14 +43,19 @@ fun ViewMiPedido(
     onCart: () -> Unit,
     onEmpezar: () -> Unit,
 ) {
-    val pedido = vm.ultimoPedido.value
+    // CORRECCIÓN: suscripción real al Flow (antes siempre mostraba "Aún no tienes pedidos").
+    val pedido by vm.ultimoPedido.collectAsState()
+
     Column(Modifier.fillMaxWidth()) {
         BarraSuperior(cartCount = vm.cart.size, onCartClick = onCart)
         Pantalla {
             Column {
                 Volver(onVolver)
                 Titulo("Mi pedido")
-                if (pedido == null) {
+                // "pedido" es un delegado (by), por eso lo copiamos a una val local
+                // para que Kotlin pueda hacer el smart cast de PedidoWithPlatos? a no nulo.
+                val actual = pedido
+                if (actual == null) {
                     Spacer(Modifier.height(12.dp))
                     Text(
                         "Aún no tienes pedidos registrados en este dispositivo.",
@@ -54,11 +65,11 @@ fun ViewMiPedido(
                     Spacer(Modifier.height(20.dp))
                     Boton("Hacer un pedido", onClick = onEmpezar, estilo = "acento")
                 } else {
-                    TarjetaPedido(pedido)
+                    TarjetaPedido(actual)
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Estado: ${textoEstadoPedido(pedido.pedido.estadoPedido)} · Pago: ${textoEstadoPago(pedido.pedido.estadoPago)}. " +
-                            "Puedes consultar esta pantalla para seguir tu pedido.",
+                        "Estado: ${textoEstadoPedido(actual.pedido.estadoPedido)} · Pago: ${textoEstadoPago(actual.pedido.estadoPago)}. " +
+                                "Puedes consultar esta pantalla para seguir tu pedido.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                     )
@@ -96,7 +107,7 @@ private fun TarjetaPedido(datos: PedidoWithPlatos) {
             datos.platos.forEach { plato ->
                 Text(
                     "• ${plato.nombreProteina}" +
-                        if (plato.solo) " (solo proteína)" else " — ${plato.acompanamientos.joinToString(" · ")}",
+                            if (plato.solo) " (solo proteína)" else " — ${plato.acompanamientos.joinToString(" · ")}",
                     fontSize = 14.sp,
                 )
             }

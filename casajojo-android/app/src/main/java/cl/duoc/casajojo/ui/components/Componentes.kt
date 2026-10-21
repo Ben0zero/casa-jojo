@@ -3,6 +3,7 @@ package cl.duoc.casajojo.ui.components
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Barra superior con el logo y un acceso rápido al carrito (si tiene platos). */
 @Composable
 fun BarraSuperior(
     cartCount: Int,
@@ -63,19 +66,29 @@ fun BarraSuperior(
     }
 }
 
+/**
+ * Indicador de progreso del armado: Proteína → Acompañamientos → Retiro y pago.
+ * "paso" es 1, 2 o 3; los pasos alcanzados se pintan con el color de acento.
+ */
 @Composable
 fun PasoBar(paso: Int) {
     val pasos = listOf("Proteína", "Acompañamientos", "Retiro y pago")
     Row(modifier = Modifier.fillMaxWidth().padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         pasos.forEachIndexed { i, text ->
             val activo = paso >= i + 1
-            Column(
-                modifier = Modifier.weight(1f).padding(top = 8.dp).clip(
-                    RoundedCornerShape(2.dp)
-                ).background(
-                    if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+            // CORRECCIÓN VISUAL: antes el color se aplicaba como fondo de toda la
+            // columna, así que el texto quedaba encima de un bloque naranjo.
+            // Ahora cada paso es una línea delgada de color y, debajo, su nombre.
+            Column(modifier = Modifier.weight(1f).padding(top = 8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        ),
                 )
-            ) {
                 Text(
                     text,
                     color = if (activo) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -88,6 +101,7 @@ fun PasoBar(paso: Int) {
     }
 }
 
+/** Círculo (radio) o cuadrado (check) que indica si una opción está marcada. */
 @Composable
 fun Marcador(
     estilo: String,
@@ -112,6 +126,11 @@ fun Marcador(
     }
 }
 
+/**
+ * Tarjeta seleccionable para proteínas y acompañamientos.
+ * Si "deshabilitado" es true (producto agotado) no responde al toque,
+ * se ve transparente y el nombre aparece tachado.
+ */
 @Composable
 fun OptionCard(
     texto: String,
@@ -139,7 +158,7 @@ fun OptionCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Marcador(estilo, marcado)
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     texto,
                     fontWeight = FontWeight.SemiBold,
@@ -156,6 +175,7 @@ fun OptionCard(
     }
 }
 
+/** Etiqueta redondeada de color, usada para el estado del pedido y del pago. */
 @Composable
 fun Pill(
     texto: String,
@@ -176,6 +196,10 @@ fun Pill(
     }
 }
 
+/**
+ * Botón de ancho completo. Estilos: "acento" (naranjo), "oscuro" y "fantasma" (solo borde).
+ * Con enabled = false el botón no responde y se ve atenuado.
+ */
 @Composable
 fun Boton(
     texto: String,
@@ -208,7 +232,8 @@ fun Boton(
         shape = RoundedCornerShape(12.dp),
         color = colorFondo,
         border = borde,
-        modifier = Modifier.fillMaxWidth(),
+        // Atenuamos el botón deshabilitado para que el usuario note que no puede avanzar.
+        modifier = Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.45f),
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -219,11 +244,20 @@ fun Boton(
     }
 }
 
+/** Enlace "‹ Volver" que aparece arriba de cada pantalla del flujo. */
 @Composable
 fun Volver(onClick: () -> Unit) {
+    // CORRECCIÓN: el parámetro onClick se recibía pero nunca se usaba, así que
+    // tocar "Volver" no hacía nada (solo funcionaba el botón atrás del teléfono).
+    // Modifier.clickable conecta el toque con la acción de navegación que
+    // entrega App.kt (normalmente nav.popBackStack()).
     Text(
         "‹ Volver",
-        modifier = Modifier.padding(bottom = 12.dp),
+        modifier = Modifier
+            .padding(top = 8.dp, bottom = 12.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 4.dp), // área de toque más cómoda
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
@@ -243,6 +277,7 @@ fun Titulo(
     }
 }
 
+/** Fila de chips de selección única (hora de retiro, forma de pago). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ChipRow(
@@ -250,7 +285,10 @@ fun ChipRow(
     seleccion: String,
     onSeleccionar: (String) -> Unit,
 ) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         opciones.forEach { op ->
             Surface(
                 onClick = { onSeleccionar(op) },
@@ -272,6 +310,10 @@ fun ChipRow(
     }
 }
 
+/**
+ * Muestra un Toast cada vez que el ViewModel publica un error y luego lo limpia,
+ * para que no se repita al volver a dibujar la pantalla.
+ */
 @Composable
 fun ErrorEcho(
     error: String?,

@@ -17,12 +17,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
 
+/**
+ * Plantilla común de todas las pantallas del cliente:
+ * - Arriba, el contenido con scroll.
+ * - Abajo (opcional), una barra fija con el botón principal ("bar").
+ */
 @Composable
 fun Pantalla(
     bar: (@Composable () -> Unit)? = null,
@@ -93,12 +100,25 @@ fun Nota(texto: String) {
     }
 }
 
+/**
+ * PASO 0 — Portada.
+ * Desde aquí el cliente empieza un pedido nuevo o revisa el último que hizo.
+ */
 @Composable
 fun ViewHome(
     vm: ClienteViewModel,
     onComenzar: () -> Unit,
     onMiPedido: () -> Unit,
 ) {
+    // CORRECCIÓN: antes se leía vm.ultimoPedido.value directamente.
+    // El StateFlow del ViewModel usa SharingStarted.WhileSubscribed, es decir,
+    // solo consulta Room mientras alguien lo está "escuchando". Leer .value no
+    // cuenta como escuchar, así que el valor quedaba siempre en null y el botón
+    // "Ver mi pedido" nunca aparecía.
+    // collectAsState() se suscribe al Flow y además hace que la pantalla se
+    // vuelva a dibujar (recomponga) cada vez que llega un valor nuevo.
+    val ultimoPedido by vm.ultimoPedido.collectAsState()
+
     Pantalla {
         Column {
             Text("Arma tu menú", fontSize = 32.sp, fontWeight = FontWeight.Bold)
@@ -113,7 +133,8 @@ fun ViewHome(
             )
             Spacer(Modifier.height(20.dp))
             Boton("Comenzar mi pedido", onClick = onComenzar)
-            if (vm.ultimoPedido.value != null) {
+            // Solo se ofrece "Ver mi pedido" si ya existe al menos un pedido guardado.
+            if (ultimoPedido != null) {
                 Spacer(Modifier.height(10.dp))
                 Boton(
                     "Ver mi pedido",
