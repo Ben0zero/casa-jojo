@@ -1,6 +1,7 @@
 package cl.duoc.casajojo.ui.cliente
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,7 +112,11 @@ fun ViewHome(
     vm: ClienteViewModel,
     onComenzar: () -> Unit,
     onMiPedido: () -> Unit,
+    onCerrarSesion: () -> Unit,
 ) {
+    // NUEVO (fase 1): datos del usuario logueado para el saludo.
+    val usuario by vm.usuario.collectAsState()
+
     // CORRECCIÓN: antes se leía vm.ultimoPedido.value directamente.
     // El StateFlow del ViewModel usa SharingStarted.WhileSubscribed, es decir,
     // solo consulta Room mientras alguien lo está "escuchando". Leer .value no
@@ -121,6 +128,30 @@ fun ViewHome(
 
     Pantalla {
         Column {
+            // NUEVO (fase 1): saludo con el primer nombre y acceso a cerrar sesión.
+            // (En la fase 2 "Cerrar sesión" pasa a la pantalla Perfil.)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Hola, ${usuario?.nombre?.substringBefore(' ') ?: ""}",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Cerrar sesión",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onCerrarSesion)
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                )
+            }
             Text("Arma tu menú", fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Regla()
             Text(

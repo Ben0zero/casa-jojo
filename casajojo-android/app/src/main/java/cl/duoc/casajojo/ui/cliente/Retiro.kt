@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +27,11 @@ import cl.duoc.casajojo.ui.formato.money
 private val HORAS_RETIRO = listOf("12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00")
 private val FORMAS_PAGO = listOf("Transferencia", "Pagar al retirar")
 
+/**
+ * PASO 4 — Retiro y pago.
+ * El cliente indica a nombre de quién, la hora de retiro, cómo pagará
+ * (solo como anotación) e indicaciones opcionales.
+ */
 @Composable
 fun ViewRetiro(
     vm: ClienteViewModel,
@@ -32,13 +39,19 @@ fun ViewRetiro(
     onConfirmar: () -> Unit,
 ) {
     ErrorEcho(vm.error) { vm.limpiarError() }
+
+    // NUEVO (fase 1): al entrar, el nombre se rellena con el de la cuenta.
+    // LaunchedEffect(usuario) corre cuando llega el usuario desde DataStore/Room.
+    val usuario by vm.usuario.collectAsState()
+    LaunchedEffect(usuario) { vm.prellenarNombre(usuario?.nombre) }
+
     Pantalla {
         Column {
             Volver(onVolver)
             PasoBar(3)
             Titulo("Retiro y pago")
 
-            Text("Tu nombre", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
+            Text("Nombre para el retiro", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
             OutlinedTextField(
                 value = vm.nombre,
                 onValueChange = { vm.nombre = it },

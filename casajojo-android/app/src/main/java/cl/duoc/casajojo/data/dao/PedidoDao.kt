@@ -20,7 +20,12 @@ interface PedidoDao {
     @Query("SELECT MAX(numero) FROM pedidos")
     suspend fun maxNumero(): Int?
 
+    /**
+     * CAMBIO (login): antes devolvía el último pedido de CUALQUIERA.
+     * Ahora devuelve el último pedido del usuario que inició sesión.
+     * @Transaction: Room lee el pedido y sus platos en una sola operación consistente.
+     */
     @Transaction
-    @Query("SELECT * FROM pedidos ORDER BY id DESC LIMIT 1")
-    fun ultimoConPlatos(): Flow<PedidoWithPlatos?>
+    @Query("SELECT * FROM pedidos WHERE usuarioId = :usuarioId ORDER BY id DESC LIMIT 1")
+    fun ultimoDelUsuario(usuarioId: Long): Flow<PedidoWithPlatos?>
 }

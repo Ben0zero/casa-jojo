@@ -11,9 +11,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /**
- * Repositorio: único punto de acceso a los datos para el ViewModel.
- * El ViewModel no conoce los DAO ni SQL; solo pide "proteínas",
- * "último pedido" o "registrar pedido".
+ * Repositorio: único punto de acceso a los datos de menú y pedidos para el ViewModel.
+ * El ViewModel no conoce los DAO ni SQL.
  */
 class PedidoRepository(private val db: CasaJojoDatabase) {
     private val productos = db.productoDao()
@@ -29,25 +28,24 @@ class PedidoRepository(private val db: CasaJojoDatabase) {
             list.filter { it.tipo == Producto.TIPO_ACOMPANAMIENTO && it.disponible }
         }
 
-    /** Último pedido con sus platos. Emite de nuevo cada vez que cambian las tablas. */
-    val ultimoPedido: Flow<PedidoWithPlatos?> = pedidos.ultimoConPlatos()
+    /** CAMBIO (login): último pedido del usuario indicado. */
+    fun ultimoPedidoDe(usuarioId: Long): Flow<PedidoWithPlatos?> =
+        pedidos.ultimoDelUsuario(usuarioId)
 
     /**
      * Guarda un pedido completo y devuelve su número correlativo.
-     * Estado inicial: pedido "recibido" y pago "pendiente" (el pago es solo una etiqueta).
+     * Estado inicial: pedido "recibido" y pago "pendiente".
+     * CAMBIO (login): recibe usuarioId para asociar el pedido a la cuenta.
      */
     suspend fun registrarPedido(
+        usuarioId: Long?,
         nombre: String,
         horaRetiro: String,
         formaPago: String,
         indicaciones: String,
         platos: List<PlatoDraft>,
     ): Int =
-    // CORRECCIÓN: withTransaction agrupa todas las inserciones en una sola
-    // operación "todo o nada". Antes, si fallaba la inserción de un plato,
-    // quedaba guardado un pedido sin platos (o con platos a medias).
-    // Además, leer el máximo y crear el número dentro de la transacción
-        // evita que dos registros simultáneos obtengan el mismo número.
+        // withTransaction: todo o nada (pedido + platos), y el número no se repite.
         db.withTransaction {
             val numero = (pedidos.maxNumero() ?: 0) + 1
             val pedido = Pedido(
@@ -60,8 +58,8 @@ class PedidoRepository(private val db: CasaJojoDatabase) {
                 estadoPago = "pendiente",
                 total = platos.sumOf { it.precio },
                 fecha = System.currentTimeMillis(),
+                usuarioId = usuarioId,
             )
-            // insertPedido devuelve el id generado; lo usamos como llave foránea de cada plato.
             val pedidoId = pedidos.insertPedido(pedido)
             platos.forEach { draft ->
                 pedidos.insertPlato(

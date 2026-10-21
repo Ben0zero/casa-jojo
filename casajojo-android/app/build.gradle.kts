@@ -13,8 +13,8 @@ android {
         applicationId = "cl.duoc.casajojo"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0" // fase 1: login y sesión
     }
 
     buildTypes {
@@ -50,6 +50,9 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // NUEVO (fase 1): DataStore Preferences, guarda la sesión del usuario.
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
 

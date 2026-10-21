@@ -1,4 +1,6 @@
 [versions]
+# Android Gradle Plugin: debe ser compatible con tu versión de Android Studio.
+# Se bajó de 9.4.1 a 9.3.0 porque Android Studio solo soporta hasta 9.3.0.
 agp = "9.3.0"
 kotlin = "2.4.20"
 ksp = "2.3.12"
@@ -8,6 +10,8 @@ composeBom = "2026.09.00"
 lifecycle = "2.11.0"
 navigation = "2.10.2"
 room = "2.8.5"
+# NUEVO (fase 1): DataStore para guardar la sesión en el teléfono (guía datastore).
+datastore = "1.1.7"
 junit = "4.13.2"
 coroutinesTest = "1.11.0"
 
@@ -25,6 +29,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 

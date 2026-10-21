@@ -7,14 +7,21 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duoc.casajojo.data.CasaJojoDatabase
+import cl.duoc.casajojo.data.SesionPreferences
 import cl.duoc.casajojo.data.entity.PedidoWithPlatos
 import cl.duoc.casajojo.data.entity.Producto
+import cl.duoc.casajojo.data.entity.Usuario
+import cl.duoc.casajojo.data.repo.AuthRepository
 import cl.duoc.casajojo.data.repo.PedidoRepository
 import cl.duoc.casajojo.domain.PlatoDraft
 import cl.duoc.casajojo.domain.ReglasPedido
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -24,14 +31,24 @@ import kotlinx.coroutines.launch
  * volver entre Proteína, Acompañamientos, Carrito y Retiro.
  *
  * Tiene dos tipos de estado:
- * 1) Datos que vienen de Room como StateFlow (menú y último pedido).
+ * 1) Datos que vienen de Room/DataStore como StateFlow (menú, usuario, último pedido).
  *    Las pantallas deben leerlos con collectAsState().
  * 2) Estado del formulario en memoria con mutableStateOf (carrito, nombre,
  *    hora, etc.). Compose redibuja automáticamente cuando cambian.
  */
 class ClienteViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = PedidoRepository(CasaJojoDatabase.get(app))
+    private val db = CasaJojoDatabase.get(app)
+    private val repo = PedidoRepository(db)
+
+    // NUEVO (fase 1): sesión guardada en DataStore y datos del usuario logueado.
+    private val sesion = SesionPreferences(app)
+    private val authRepo = AuthRepository(db, sesion)
+
+    /** Usuario con sesión activa; se usa para saludar y prellenar el nombre del retiro. */
+    val usuario: StateFlow<Usuario?> = authRepo.usuarioActual.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
+    )
 
     // ---------- 1) Datos desde Room ----------
     // stateIn convierte el Flow en StateFlow con un valor inicial.
@@ -46,9 +63,15 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
 
-    val ultimoPedido: StateFlow<PedidoWithPlatos?> = repo.ultimoPedido.stateIn(
-        viewModelScope, SharingStarted.WhileSubscribed(5000), null
-    )
+    /**
+     * CAMBIO (fase 1): último pedido DEL USUARIO LOGUEADO.
+     * flatMapLatest: si cambia el usuario (cerrar sesión y entrar con otro),
+     * se deja de escuchar el pedido anterior y se busca el del nuevo usuario.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val ultimoPedido: StateFlow<PedidoWithPlatos?> = sesion.usuarioId
+        .flatMapLatest { id -> if (id == null) flowOf(null) else repo.ultimoPedidoDe(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // ---------- 2) Estado del armado del pedido ----------
     // "private set": las pantallas pueden leerlo, pero solo el ViewModel lo modifica.
@@ -185,6 +208,9 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
             enRegistro = true
             try {
                 val numero = repo.registrarPedido(
+                    // NUEVO (fase 1): el pedido queda asociado a la cuenta.
+                    // first() lee una vez el id guardado en DataStore.
+                    usuarioId = sesion.usuarioId.first(),
                     nombre = nombre.trim(),
                     horaRetiro = horaRetiro,
                     formaPago = formaPago,
@@ -207,6 +233,23 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
                 enRegistro = false
             }
         }
+    }
+
+    /**
+     * NUEVO (fase 1): si el campo nombre del retiro está vacío, lo rellena con
+     * el nombre de la cuenta. Si la persona ya escribió algo, no lo pisa.
+     */
+    fun prellenarNombre(nombreUsuario: String?) {
+        if (nombre.isBlank() && !nombreUsuario.isNullOrBlank()) {
+            nombre = nombreUsuario
+        }
+    }
+
+    /** NUEVO (fase 1): al cerrar sesión se descarta el pedido a medio armar. */
+    fun limpiarTodo() {
+        resetear()
+        ultimoNumero = null
+        error = null
     }
 
     /** Deja el formulario y el carrito listos para un pedido nuevo. */

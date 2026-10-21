@@ -17,6 +17,10 @@ data class Pedido(
     val estadoPago: String,
     val total: Int,
     val fecha: Long,
+    // NUEVO (base de datos v2): id del usuario que hizo el pedido.
+    // Es "Long?" (puede ser null) porque los pedidos creados antes del login
+    // no tienen dueño. Así "Mi pedido" muestra solo los pedidos de quien inició sesión.
+    val usuarioId: Long? = null,
 )
 
 data class PedidoWithPlatos(
