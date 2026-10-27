@@ -39,6 +39,7 @@ import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 import cl.duoc.casajojo.ui.screens.cliente.ViewAcompanamientos
 import cl.duoc.casajojo.ui.screens.cliente.ViewCarrito
 import cl.duoc.casajojo.ui.screens.cliente.ViewConfirmado
+import cl.duoc.casajojo.ui.screens.cliente.ViewHistorial
 import cl.duoc.casajojo.ui.screens.cliente.ViewHome
 import cl.duoc.casajojo.ui.screens.cliente.ViewMiPedido
 import cl.duoc.casajojo.ui.screens.cliente.ViewProteina
@@ -61,6 +62,7 @@ import cl.duoc.casajojo.data.local.PerfilPhotoStorage
  *              └──────────── "Agregar otro" ─────────┘
  *
  *   home ──► perfil ── "Cerrar sesión" ──► login (se borra la pila de pantallas)
+ *   home ──► historial (pedidos entregados / cancelados)
  *
  * Las pantallas NO navegan solas: reciben lambdas (onVolver, onContinuar…) y
  * aquí se decide a dónde lleva cada una.
@@ -188,6 +190,16 @@ private fun NavegacionApp(
                 onComenzar = { nav.navigate(AppRoutes.Proteina.route) },
                 onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
                 onPerfil = { nav.navigate(AppRoutes.Perfil.route) },
+                onHistorial = { nav.navigate(AppRoutes.Historial.route) },
+            )
+        }
+
+        // NUEVO (RF-14): pedidos entregados y cancelados.
+        composable(AppRoutes.Historial.route) {
+            ViewHistorial(
+                vm = vm,
+                onVolver = { nav.popBackStack() },
+                onCart = { nav.navigate(AppRoutes.Carrito.route) },
             )
         }
 

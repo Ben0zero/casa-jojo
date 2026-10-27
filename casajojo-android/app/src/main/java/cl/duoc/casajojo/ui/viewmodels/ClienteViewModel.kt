@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import cl.duoc.casajojo.data.local.CasaJojoDatabase
 import cl.duoc.casajojo.utils.Notificaciones
 import cl.duoc.casajojo.data.local.SesionPreferences
+import cl.duoc.casajojo.data.local.entity.Pedido
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.data.local.entity.Producto
 import cl.duoc.casajojo.data.repository.PedidoRepository
@@ -16,11 +17,14 @@ import cl.duoc.casajojo.domain.model.PlatoDraft
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -76,6 +80,27 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
     val misPedidos: StateFlow<List<PedidoWithPlatos>> = sesion.usuarioId
         .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repo.pedidosDe(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // NUEVO (RF-14): chip elegido en el Historial ("Entregados" por defecto).
+    private val _filtroHistorial = MutableStateFlow(FiltroHistorial.Entregados)
+    val filtroHistorial: StateFlow<FiltroHistorial> = _filtroHistorial
+
+    /**
+     * NUEVO (RF-14): pedidos finalizados del usuario según el filtro.
+     * combine + flatMapLatest: si cambia la sesión o el chip, se deja la
+     * consulta anterior y se escucha la nueva (Room avisa cada cambio).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val historial: StateFlow<HistorialUiState> = combine(sesion.usuarioId, _filtroHistorial) { id, filtro -> id to filtro }
+        .flatMapLatest { (id, filtro) ->
+            if (id == null) flowOf(HistorialUiState(filtro))
+            else repo.historialDe(id, filtro.estado).map { HistorialUiState(filtro, it) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HistorialUiState())
+
+    fun onFiltroHistorial(filtro: FiltroHistorial) {
+        _filtroHistorial.value = filtro
+    }
 
     // ---------- 2) Estado del armado del pedido ----------
     // "private set": las pantallas pueden leerlo, pero solo el ViewModel lo modifica.
@@ -274,6 +299,54 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 // finally se ejecuta siempre: el botón nunca queda "Registrando…" pegado.
                 enRegistro = false
+            }
+        }
+    }
+
+    /** NUEVO (RF-13): true mientras se cancela un pedido (evita doble toque). */
+    var cancelando by mutableStateOf(false)
+        private set
+
+    /**
+     * NUEVO (RF-13): cancela el pedido en Room. El DAO vuelve a revisar el
+     * estado y el plazo, así que "alTerminar" recibe false si ya no se podía.
+     * Si se canceló, también se quita la notificación de "pedido registrado".
+     */
+    fun cancelarPedido(pedido: Pedido, alTerminar: (Boolean) -> Unit) {
+        if (cancelando) return
+        viewModelScope.launch {
+            cancelando = true
+            try {
+                val cancelado = repo.cancelarPedido(pedido.id)
+                if (cancelado) {
+                    Notificaciones.quitarPedidoRegistrado(getApplication(), pedido.numero)
+                }
+                alTerminar(cancelado)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = "No pudimos cancelar tu pedido. Intenta de nuevo."
+            } finally {
+                cancelando = false
+            }
+        }
+    }
+
+    /**
+     * NUEVO (RF-14): al leer bien el QR de retiro, el pedido queda
+     * "entregado" y "pagado" (así llega al Historial). Un pedido cancelado
+     * no cambia: lo impide la consulta del DAO.
+     */
+    fun registrarRetiro(pedido: Pedido) {
+        viewModelScope.launch {
+            try {
+                if (!repo.marcarEntregado(pedido.id)) {
+                    error = "Este pedido ya no se puede retirar"
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = "No pudimos registrar el retiro. Intenta de nuevo."
             }
         }
     }

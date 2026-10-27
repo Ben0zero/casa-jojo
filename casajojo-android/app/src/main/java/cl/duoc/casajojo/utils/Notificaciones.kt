@@ -72,4 +72,12 @@ object Notificaciones {
             NotificationManagerCompat.from(context).notify(numero, notificacion)
         }
     }
+
+    /**
+     * NUEVO (RF-13): quita el aviso "Pedido #N registrado" si el pedido se
+     * canceló. Usa el mismo id (el número de pedido); si no estaba, no pasa nada.
+     */
+    fun quitarPedidoRegistrado(context: Context, numero: Int) {
+        NotificationManagerCompat.from(context).cancel(numero)
+    }
 }

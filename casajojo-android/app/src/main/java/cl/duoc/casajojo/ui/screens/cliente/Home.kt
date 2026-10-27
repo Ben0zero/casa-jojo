@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +42,7 @@ fun ViewHome(
     onComenzar: () -> Unit,
     onMiPedido: () -> Unit,
     onPerfil: () -> Unit,
+    onHistorial: () -> Unit,
 ) {
     // CORRECCIÓN: antes se leía vm.ultimoPedido.value directamente.
     // El StateFlow del ViewModel usa SharingStarted.WhileSubscribed, es decir,
@@ -67,6 +69,14 @@ fun ViewHome(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
+                // NUEVO (RF-14): acceso al Historial, junto al perfil.
+                IconButton(onClick = onHistorial) {
+                    Icon(
+                        Icons.Filled.History,
+                        contentDescription = "Historial",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 IconButton(onClick = onPerfil) {
                     Icon(
                         Icons.Filled.AccountCircle,

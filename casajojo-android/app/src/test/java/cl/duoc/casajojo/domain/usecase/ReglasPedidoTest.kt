@@ -88,4 +88,44 @@ class ReglasPedidoTest {
         assertNull(errores.nombre)
         assertFalse(errores.hayErrores)
     }
+
+    // ---------- NUEVOS (RF-13): cancelar dentro de 15 segundos ----------
+
+    private val fecha = 1_000_000L
+
+    @Test
+    fun `Pedido recibido dentro del plazo se puede cancelar`() {
+        assertTrue(ReglasPedido.puedeCancelar(fecha, fecha + 5_000, "recibido"))
+    }
+
+    @Test
+    fun `Pedido recibido justo a los 15 segundos todavia se puede cancelar`() {
+        assertTrue(ReglasPedido.puedeCancelar(fecha, fecha + ReglasPedido.PLAZO_CANCELACION_MS, "recibido"))
+    }
+
+    @Test
+    fun `Pedido recibido fuera del plazo no se puede cancelar`() {
+        assertFalse(ReglasPedido.puedeCancelar(fecha, fecha + ReglasPedido.PLAZO_CANCELACION_MS + 1, "recibido"))
+    }
+
+    @Test
+    fun `Pedido que no esta recibido no se puede cancelar aunque este en plazo`() {
+        assertFalse(ReglasPedido.puedeCancelar(fecha, fecha + 1_000, "preparacion"))
+        assertFalse(ReglasPedido.puedeCancelar(fecha, fecha + 1_000, "cancelado"))
+    }
+
+    @Test
+    fun `Tiempo para cancelar baja hasta cero y no queda negativo`() {
+        assertEquals(12_000L, ReglasPedido.msParaCancelar(fecha, fecha + 3_000))
+        assertEquals(0L, ReglasPedido.msParaCancelar(fecha, fecha + 60_000))
+    }
+
+    // ---------- NUEVOS (RF-14): retiro con QR ----------
+
+    @Test
+    fun `Pedido cancelado o entregado no se retira con QR`() {
+        assertFalse(ReglasPedido.puedeRetirarConQr("cancelado"))
+        assertFalse(ReglasPedido.puedeRetirarConQr("entregado"))
+        assertTrue(ReglasPedido.puedeRetirarConQr("recibido"))
+    }
 }

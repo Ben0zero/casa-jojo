@@ -36,4 +36,27 @@ interface PedidoDao {
     @Transaction
     @Query("SELECT * FROM pedidos WHERE usuarioId = :usuarioId ORDER BY id DESC")
     fun todosDelUsuario(usuarioId: Long): Flow<List<PedidoWithPlatos>>
+
+    /**
+     * NUEVO (RF-14): pedidos del usuario en un estado (Historial: "entregado"
+     * o "cancelado"), del más reciente al más antiguo.
+     */
+    @Transaction
+    @Query("SELECT * FROM pedidos WHERE usuarioId = :usuarioId AND estadoPedido = :estado ORDER BY fecha DESC, id DESC")
+    fun delUsuarioPorEstado(usuarioId: Long, estado: String): Flow<List<PedidoWithPlatos>>
+
+    /**
+     * NUEVO (RF-13): cancelación segura. Solo cambia el pedido si sigue
+     * "recibido" y su fecha está dentro del plazo (fecha >= limite).
+     * Devuelve cuántas filas cambió: 0 = ya no se podía cancelar.
+     */
+    @Query("UPDATE pedidos SET estadoPedido = 'cancelado' WHERE id = :id AND estadoPedido = 'recibido' AND fecha >= :limite")
+    suspend fun cancelar(id: Long, limite: Long): Int
+
+    /**
+     * NUEVO (RF-14): al retirar con QR el pedido queda entregado y pagado.
+     * Un pedido cancelado o ya entregado no cambia (devuelve 0).
+     */
+    @Query("UPDATE pedidos SET estadoPedido = 'entregado', estadoPago = 'pagado' WHERE id = :id AND estadoPedido NOT IN ('cancelado', 'entregado')")
+    suspend fun marcarEntregado(id: Long): Int
 }

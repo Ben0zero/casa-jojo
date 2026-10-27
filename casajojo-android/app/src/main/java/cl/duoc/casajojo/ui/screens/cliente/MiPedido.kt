@@ -6,11 +6,15 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
@@ -26,7 +31,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.data.local.entity.Pedido
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
+import cl.duoc.casajojo.domain.usecase.ReglasPedido
+import cl.duoc.casajojo.ui.components.CancelarPedido
+import cl.duoc.casajojo.ui.components.ErrorEcho
+import cl.duoc.casajojo.ui.components.MSG_FUERA_DE_PLAZO
+import cl.duoc.casajojo.ui.components.MSG_PEDIDO_CANCELADO
 import cl.duoc.casajojo.ui.layouts.BarraSuperior
 import cl.duoc.casajojo.ui.components.Boton
 import cl.duoc.casajojo.ui.components.EstiloBoton
@@ -42,6 +53,7 @@ import cl.duoc.casajojo.utils.textoEstadoPedido
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import kotlinx.coroutines.launch
 
 /**
  * PASO 6 — Mis pedidos (RF-19: consultar estado).
@@ -60,51 +72,83 @@ fun ViewMiPedido(
 ) {
     // collectAsState(): suscripción real al Flow de Room.
     val pedidos by vm.misPedidos.collectAsState()
+    ErrorEcho(vm.error) { vm.limpiarError() }
 
-    Column(Modifier.fillMaxWidth()) {
-        BarraSuperior(cartCount = vm.cart.size, onCartClick = onCart)
-        Pantalla {
-            Column {
-                Volver(onVolver)
-                Titulo(
-                    "Mis pedidos",
-                    if (pedidos.isEmpty()) null
-                    else "${pedidos.size} ${if (pedidos.size == 1) "pedido" else "pedidos"} · el más reciente primero",
-                )
-                if (pedidos.isEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Aún no tienes pedidos registrados en este dispositivo.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 16.sp,
+    // NUEVO (RF-13): avisos de la cancelación ("Pedido cancelado" / fuera de plazo).
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    fun avisar(mensaje: String) {
+        scope.launch { snackbar.showSnackbar(mensaje) }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth()) {
+            BarraSuperior(cartCount = vm.cart.size, onCartClick = onCart)
+            Pantalla {
+                Column {
+                    Volver(onVolver)
+                    Titulo(
+                        "Mis pedidos",
+                        if (pedidos.isEmpty()) null
+                        else "${pedidos.size} ${if (pedidos.size == 1) "pedido" else "pedidos"} · el más reciente primero",
                     )
-                    Spacer(Modifier.height(20.dp))
-                    Boton("Hacer un pedido", onClick = onEmpezar, estilo = EstiloBoton.Acento)
-                } else {
-                    // forEach y no LazyColumn: Pantalla ya tiene scroll vertical, y
-                    // una LazyColumn dentro de otro scroll vertical hace fallar la app.
-                    // key: Compose identifica cada tarjeta por su id, así las
-                    // animaciones de estado no se mezclan entre pedidos.
-                    pedidos.forEachIndexed { i, datos ->
-                        key(datos.pedido.id) {
-                            TarjetaPedido(datos, esUltimo = i == 0)
+                    if (pedidos.isEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Aún no tienes pedidos registrados en este dispositivo.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 16.sp,
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Boton("Hacer un pedido", onClick = onEmpezar, estilo = EstiloBoton.Acento)
+                    } else {
+                        // forEach y no LazyColumn: Pantalla ya tiene scroll vertical, y
+                        // una LazyColumn dentro de otro scroll vertical hace fallar la app.
+                        // key: Compose identifica cada tarjeta por su id, así las
+                        // animaciones de estado no se mezclan entre pedidos.
+                        pedidos.forEachIndexed { i, datos ->
+                            key(datos.pedido.id) {
+                                TarjetaPedido(
+                                    datos,
+                                    esUltimo = i == 0,
+                                    cancelando = vm.cancelando,
+                                    onCancelar = {
+                                        vm.cancelarPedido(datos.pedido) { ok ->
+                                            avisar(if (ok) MSG_PEDIDO_CANCELADO else MSG_FUERA_DE_PLAZO)
+                                        }
+                                    },
+                                    onFueraDePlazo = { avisar(MSG_FUERA_DE_PLAZO) },
+                                    onRetirado = vm::registrarRetiro,
+                                )
+                            }
                         }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Puedes volver a esta pantalla para seguir el estado de tus pedidos.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                        )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Puedes volver a esta pantalla para seguir el estado de tus pedidos.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                    )
                 }
             }
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 @Composable
-private fun TarjetaPedido(datos: PedidoWithPlatos, esUltimo: Boolean) {
+private fun TarjetaPedido(
+    datos: PedidoWithPlatos,
+    esUltimo: Boolean,
+    cancelando: Boolean,
+    onCancelar: () -> Unit,
+    onFueraDePlazo: () -> Unit,
+    onRetirado: (Pedido) -> Unit,
+) {
     val p = datos.pedido
+    // NUEVO (RF-13): un pedido cancelado no se destaca como activo.
+    val cancelado = p.estadoPedido == "cancelado"
+    val destacado = esUltimo && !cancelado
     val context = LocalContext.current
     var errorQr by remember { mutableStateOf<String?>(null) }
     Surface(
@@ -112,8 +156,8 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, esUltimo: Boolean) {
         shape = RoundedCornerShape(12.dp),
         // El pedido más reciente se destaca con el borde del color de acento.
         border = androidx.compose.foundation.BorderStroke(
-            if (esUltimo) 1.5.dp else 1.dp,
-            if (esUltimo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+            if (destacado) 1.5.dp else 1.dp,
+            if (destacado) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
     ) {
@@ -131,7 +175,7 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, esUltimo: Boolean) {
                 }
             }
             Text(
-                (if (esUltimo) "Último pedido · " else "") + p.fecha.fechaHora(),
+                (if (destacado) "Último pedido · " else "") + p.fecha.fechaHora(),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -143,16 +187,37 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, esUltimo: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (p.formaPago == "Pagar en tienda" && p.estadoPago == "pendiente") {
+            // NUEVO (RF-13): cuenta regresiva y botón "Cancelar pedido" (15 s).
+            CancelarPedido(
+                pedido = p,
+                cancelando = cancelando,
+                onCancelar = onCancelar,
+                onFueraDePlazo = onFueraDePlazo,
+            )
+            if (cancelado) {
+                Text(
+                    "Este pedido fue cancelado y no se preparará.",
+                    color = colorEstadoPedido("cancelado"),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+
+            // Retiro con QR. CAMBIO (RF-14): al leer bien el QR el pedido queda
+            // "entregado" y "pagado" (antes solo se abría el enlace de pago).
+            // Un pedido cancelado o ya entregado no muestra el botón.
+            if (ReglasPedido.puedeRetirarConQr(p.estadoPedido)) {
+                val pagaEnTienda = p.formaPago == "Pagar en tienda" && p.estadoPago == "pendiente"
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Pago pendiente: puedes pagar al retirar usando el QR de la tienda.",
+                    if (pagaEnTienda) "Pago pendiente: puedes pagar al retirar usando el QR de la tienda."
+                    else "Al retirar, escanea el QR de la tienda para confirmar la entrega.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                 )
                 Spacer(Modifier.height(8.dp))
                 Boton(
-                    "Escanear QR para pagar",
+                    if (pagaEnTienda) "Escanear QR para pagar" else "Escanear QR de retiro",
                     onClick = {
                         errorQr = null
                         GmsBarcodeScanning.getClient(context)
@@ -161,7 +226,11 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, esUltimo: Boolean) {
                                 val valor = resultado.rawValue.orEmpty()
                                 val enlace = runCatching { Uri.parse(valor) }.getOrNull()
                                 if (enlace?.scheme == "https" && !enlace.host.isNullOrBlank()) {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, enlace))
+                                    onRetirado(p)
+                                    // Igual que antes: si paga en tienda, se abre la plataforma de pago.
+                                    if (pagaEnTienda) {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, enlace))
+                                    }
                                 } else {
                                     errorQr = "El QR no contiene un enlace web de pago"
                                 }
