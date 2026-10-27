@@ -1,8 +1,17 @@
 package cl.duoc.casajojo.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +19,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -19,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -26,56 +37,39 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.utils.money
 
-@Composable
-fun BarraSuperior(
-    cartCount: Int,
-    onCartClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("La Casa ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("JoJo", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
-        }
-        if (cartCount > 0) {
-            Surface(
-                onClick = onCartClick,
-                shape = RoundedCornerShape(99.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp, MaterialTheme.colorScheme.outline
-                ),
-                color = Color.Transparent,
-            ) {
-                Text(
-                    "Mi pedido ($cartCount)",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                )
-            }
-        }
-    }
-}
-
+/**
+ * Indicador de progreso del armado: Proteína → Acompañamientos → Retiro y pago.
+ * "paso" es 1, 2 o 3; los pasos alcanzados se pintan con el color de acento.
+ */
 @Composable
 fun PasoBar(paso: Int) {
     val pasos = listOf("Proteína", "Acompañamientos", "Retiro y pago")
     Row(modifier = Modifier.fillMaxWidth().padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         pasos.forEachIndexed { i, text ->
             val activo = paso >= i + 1
-            Column(
-                modifier = Modifier.weight(1f).padding(top = 8.dp).clip(
-                    RoundedCornerShape(2.dp)
-                ).background(
-                    if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+            // ANIMACIÓN: la barra de progreso cambia de gris a naranjo de forma
+            // gradual al avanzar de paso, en vez de cambiar de golpe.
+            val colorBarra by animateColorAsState(
+                targetValue = if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                animationSpec = tween(320),
+                label = "colorPaso$i",
+            )
+            // CORRECCIÓN VISUAL: antes el color se aplicaba como fondo de toda la
+            // columna, así que el texto quedaba encima de un bloque naranjo.
+            // Ahora cada paso es una línea delgada de color y, debajo, su nombre.
+            Column(modifier = Modifier.weight(1f).padding(top = 8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(colorBarra),
                 )
-            ) {
                 Text(
                     text,
                     color = if (activo) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -88,6 +82,7 @@ fun PasoBar(paso: Int) {
     }
 }
 
+/** Círculo (radio) o cuadrado (check) que indica si una opción está marcada. */
 @Composable
 fun Marcador(
     estilo: String,
@@ -112,6 +107,11 @@ fun Marcador(
     }
 }
 
+/**
+ * Tarjeta seleccionable para proteínas y acompañamientos.
+ * Si "deshabilitado" es true (producto agotado) no responde al toque,
+ * se ve transparente y el nombre aparece tachado.
+ */
 @Composable
 fun OptionCard(
     texto: String,
@@ -139,7 +139,7 @@ fun OptionCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Marcador(estilo, marcado)
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     texto,
                     fontWeight = FontWeight.SemiBold,
@@ -156,6 +156,7 @@ fun OptionCard(
     }
 }
 
+/** Etiqueta redondeada de color, usada para el estado del pedido y del pago. */
 @Composable
 fun Pill(
     texto: String,
@@ -176,6 +177,10 @@ fun Pill(
     }
 }
 
+/**
+ * Botón de ancho completo. Estilos: "acento" (naranjo), "oscuro" y "fantasma" (solo borde).
+ * Con enabled = false el botón no responde y se ve atenuado.
+ */
 @Composable
 fun Boton(
     texto: String,
@@ -208,7 +213,8 @@ fun Boton(
         shape = RoundedCornerShape(12.dp),
         color = colorFondo,
         border = borde,
-        modifier = Modifier.fillMaxWidth(),
+        // Atenuamos el botón deshabilitado para que el usuario note que no puede avanzar.
+        modifier = Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.45f),
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -219,11 +225,20 @@ fun Boton(
     }
 }
 
+/** Enlace "‹ Volver" que aparece arriba de cada pantalla del flujo. */
 @Composable
 fun Volver(onClick: () -> Unit) {
+    // CORRECCIÓN: el parámetro onClick se recibía pero nunca se usaba, así que
+    // tocar "Volver" no hacía nada (solo funcionaba el botón atrás del teléfono).
+    // Modifier.clickable conecta el toque con la acción de navegación que
+    // entrega App.kt (normalmente nav.popBackStack()).
     Text(
         "‹ Volver",
-        modifier = Modifier.padding(bottom = 12.dp),
+        modifier = Modifier
+            .padding(top = 8.dp, bottom = 12.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 4.dp), // área de toque más cómoda
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
@@ -243,6 +258,7 @@ fun Titulo(
     }
 }
 
+/** Fila de chips de selección única (hora de retiro, forma de pago). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ChipRow(
@@ -250,7 +266,10 @@ fun ChipRow(
     seleccion: String,
     onSeleccionar: (String) -> Unit,
 ) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         opciones.forEach { op ->
             Surface(
                 onClick = { onSeleccionar(op) },
@@ -272,6 +291,10 @@ fun ChipRow(
     }
 }
 
+/**
+ * Muestra un Toast cada vez que el ViewModel publica un error y luego lo limpia,
+ * para que no se repita al volver a dibujar la pantalla.
+ */
 @Composable
 fun ErrorEcho(
     error: String?,
@@ -284,4 +307,26 @@ fun ErrorEcho(
             onMostrado()
         }
     }
+}
+
+/**
+ * Total del pedido con contador animado: al agregar o quitar platos el número
+ * se mueve hasta el nuevo valor en ~400 ms, en vez de cambiar de golpe.
+ */
+@Composable
+fun TotalAnimado(
+    valor: Int,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 20.sp,
+    fontWeight: FontWeight = FontWeight.Bold,
+    color: Color = Color.Unspecified,
+) {
+    val animado by animateIntAsState(valor, animationSpec = tween(400), label = "total")
+    Text(
+        animado.money(),
+        modifier = modifier,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = color,
+    )
 }
