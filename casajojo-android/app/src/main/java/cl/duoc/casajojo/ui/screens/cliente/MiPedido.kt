@@ -1,5 +1,7 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +38,7 @@ import cl.duoc.casajojo.utils.textoEstadoPago
 import cl.duoc.casajojo.utils.textoEstadoPedido
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 /**
  * PASO 6 — Mi pedido (RF-19: consultar estado).
@@ -85,6 +92,8 @@ fun ViewMiPedido(
 @Composable
 private fun TarjetaPedido(datos: PedidoWithPlatos) {
     val p = datos.pedido
+    val context = LocalContext.current
+    var errorQr by remember { mutableStateOf<String?>(null) }
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
@@ -111,6 +120,40 @@ private fun TarjetaPedido(datos: PedidoWithPlatos) {
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            if (p.formaPago == "Pagar en tienda" && p.estadoPago == "pendiente") {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Pago pendiente: puedes pagar al retirar usando el QR de la tienda.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                Boton(
+                    "Escanear QR para pagar",
+                    onClick = {
+                        errorQr = null
+                        GmsBarcodeScanning.getClient(context)
+                            .startScan()
+                            .addOnSuccessListener { resultado ->
+                                val valor = resultado.rawValue.orEmpty()
+                                val enlace = runCatching { Uri.parse(valor) }.getOrNull()
+                                if (enlace?.scheme == "https" && !enlace.host.isNullOrBlank()) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, enlace))
+                                } else {
+                                    errorQr = "El QR no contiene un enlace web de pago"
+                                }
+                            }
+                            .addOnFailureListener {
+                                errorQr = "No se pudo leer el código QR"
+                            }
+                    },
+                    estilo = "fantasma",
+                )
+                errorQr?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+            }
 
             Spacer(Modifier.height(10.dp))
             datos.platos.forEach { plato ->
