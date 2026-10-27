@@ -1,6 +1,14 @@
 package cl.duoc.casajojo.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -28,43 +37,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-/** Barra superior con el logo y un acceso rápido al carrito (si tiene platos). */
-@Composable
-fun BarraSuperior(
-    cartCount: Int,
-    onCartClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("La Casa ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("JoJo", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
-        }
-        if (cartCount > 0) {
-            Surface(
-                onClick = onCartClick,
-                shape = RoundedCornerShape(99.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp, MaterialTheme.colorScheme.outline
-                ),
-                color = Color.Transparent,
-            ) {
-                Text(
-                    "Mi pedido ($cartCount)",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                )
-            }
-        }
-    }
-}
+import cl.duoc.casajojo.utils.money
 
 /**
  * Indicador de progreso del armado: Proteína → Acompañamientos → Retiro y pago.
@@ -76,6 +52,13 @@ fun PasoBar(paso: Int) {
     Row(modifier = Modifier.fillMaxWidth().padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         pasos.forEachIndexed { i, text ->
             val activo = paso >= i + 1
+            // ANIMACIÓN: la barra de progreso cambia de gris a naranjo de forma
+            // gradual al avanzar de paso, en vez de cambiar de golpe.
+            val colorBarra by animateColorAsState(
+                targetValue = if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                animationSpec = tween(320),
+                label = "colorPaso$i",
+            )
             // CORRECCIÓN VISUAL: antes el color se aplicaba como fondo de toda la
             // columna, así que el texto quedaba encima de un bloque naranjo.
             // Ahora cada paso es una línea delgada de color y, debajo, su nombre.
@@ -85,9 +68,7 @@ fun PasoBar(paso: Int) {
                         .fillMaxWidth()
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(
-                            if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                        ),
+                        .background(colorBarra),
                 )
                 Text(
                     text,
@@ -326,4 +307,26 @@ fun ErrorEcho(
             onMostrado()
         }
     }
+}
+
+/**
+ * Total del pedido con contador animado: al agregar o quitar platos el número
+ * se mueve hasta el nuevo valor en ~400 ms, en vez de cambiar de golpe.
+ */
+@Composable
+fun TotalAnimado(
+    valor: Int,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 20.sp,
+    fontWeight: FontWeight = FontWeight.Bold,
+    color: Color = Color.Unspecified,
+) {
+    val animado by animateIntAsState(valor, animationSpec = tween(400), label = "total")
+    Text(
+        animado.money(),
+        modifier = modifier,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = color,
+    )
 }

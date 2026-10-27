@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Recurso nativo: notificaciones locales del estado del pedido.
+         Obligatorio declararlo desde Android 13 (API 33); en versiones
+         anteriores se ignora. El permiso se solicita en runtime desde
+         la pantalla de Retiro (PedirPermisoNotificaciones). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
+        android:name=".CasaJojoApplication"
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"

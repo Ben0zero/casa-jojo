@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.animateContentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -89,6 +90,8 @@ fun CampoTexto(
             null
         },
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
+        // ANIMACIÓN: cuando aparece o desaparece el mensaje de error, el campo
+        // crece/decrece con una transición suave en vez de saltar.
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
     )
 }

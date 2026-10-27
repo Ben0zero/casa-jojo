@@ -1,5 +1,10 @@
 package cl.duoc.casajojo.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -17,19 +22,19 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import cl.duoc.casajojo.ui.auth.AuthViewModel
-import cl.duoc.casajojo.ui.auth.EstadoSesion
-import cl.duoc.casajojo.ui.auth.LoginScreen
-import cl.duoc.casajojo.ui.auth.RegistroScreen
-import cl.duoc.casajojo.ui.cliente.ClienteViewModel
-import cl.duoc.casajojo.ui.cliente.ViewAcompanamientos
-import cl.duoc.casajojo.ui.cliente.ViewCarrito
-import cl.duoc.casajojo.ui.cliente.ViewConfirmado
-import cl.duoc.casajojo.ui.cliente.ViewHome
-import cl.duoc.casajojo.ui.cliente.ViewMiPedido
-import cl.duoc.casajojo.ui.cliente.ViewProteina
-import cl.duoc.casajojo.ui.cliente.ViewRetiro
-import cl.duoc.casajojo.ui.navegacion.Screen
+import cl.duoc.casajojo.ui.viewmodels.AuthViewModel
+import cl.duoc.casajojo.ui.viewmodels.EstadoSesion
+import cl.duoc.casajojo.ui.screens.auth.LoginScreen
+import cl.duoc.casajojo.ui.screens.auth.RegistroScreen
+import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
+import cl.duoc.casajojo.ui.screens.cliente.ViewAcompanamientos
+import cl.duoc.casajojo.ui.screens.cliente.ViewCarrito
+import cl.duoc.casajojo.ui.screens.cliente.ViewConfirmado
+import cl.duoc.casajojo.ui.screens.cliente.ViewHome
+import cl.duoc.casajojo.ui.screens.cliente.ViewMiPedido
+import cl.duoc.casajojo.ui.screens.cliente.ViewProteina
+import cl.duoc.casajojo.ui.screens.cliente.ViewRetiro
+import cl.duoc.casajojo.navigation.AppRoutes
 import cl.duoc.casajojo.ui.theme.CasaJojoTheme
 
 /**
@@ -76,7 +81,7 @@ fun CasaJojoApp() {
                         // remember: la pantalla inicial se decide UNA vez. Después, entrar o
                         // salir de la sesión se hace navegando, no recreando el NavHost.
                         val inicio = remember {
-                            if (sesion is EstadoSesion.Activa) Screen.Home.route else Screen.Login.route
+                            if (sesion is EstadoSesion.Activa) AppRoutes.Home.route else AppRoutes.Login.route
                         }
                         NavegacionApp(rememberNavController(), inicio, authVm, clienteVm)
                     }
@@ -94,24 +99,38 @@ private fun NavegacionApp(
     vm: ClienteViewModel,
 ) {
     /** Ir al inicio borrando todo lo anterior (el botón atrás ya no vuelve al login). */
-    fun irAlInicioLimpiando() = nav.navigate(Screen.Home.route) {
+    fun irAlInicioLimpiando() = nav.navigate(AppRoutes.Home.route) {
         popUpTo(nav.graph.id) { inclusive = true }
         launchSingleTop = true
     }
 
-    NavHost(nav, startDestination = inicio) {
+    NavHost(
+        navController = nav,
+        startDestination = inicio,
+        // ANIMACIONES: transición entre pantallas del flujo.
+        // Avanzar → la pantalla nueva entra deslizándose desde la derecha.
+        // Volver  → sale deslizándose hacia la derecha (sensación de "atrás").
+        enterTransition = {
+            slideInHorizontally(animationSpec = tween(260)) { it / 5 } + fadeIn(tween(260))
+        },
+        exitTransition = { fadeOut(tween(160)) },
+        popEnterTransition = { fadeIn(tween(220)) },
+        popExitTransition = {
+            slideOutHorizontally(animationSpec = tween(220)) { it / 5 } + fadeOut(tween(220))
+        },
+    ) {
 
         // ---------- SESIÓN ----------
 
-        composable(Screen.Login.route) {
+        composable(AppRoutes.Login.route) {
             LoginScreen(
                 vm = authVm,
                 onIngresar = { irAlInicioLimpiando() },
-                onIrRegistro = { nav.navigate(Screen.Registro.route) },
+                onIrRegistro = { nav.navigate(AppRoutes.Registro.route) },
             )
         }
 
-        composable(Screen.Registro.route) {
+        composable(AppRoutes.Registro.route) {
             RegistroScreen(
                 vm = authVm,
                 onVolver = { nav.popBackStack() },
@@ -122,15 +141,15 @@ private fun NavegacionApp(
         // ---------- FLUJO DEL CLIENTE ----------
 
         // PASO 0 — Portada
-        composable(Screen.Home.route) {
+        composable(AppRoutes.Home.route) {
             ViewHome(
                 vm = vm,
-                onComenzar = { nav.navigate(Screen.Proteina.route) },
-                onMiPedido = { nav.navigate(Screen.MiPedido.route) },
+                onComenzar = { nav.navigate(AppRoutes.Proteina.route) },
+                onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
                 onCerrarSesion = {
                     authVm.cerrarSesion {
                         vm.limpiarTodo() // descarta el carrito del usuario anterior
-                        nav.navigate(Screen.Login.route) {
+                        nav.navigate(AppRoutes.Login.route) {
                             popUpTo(nav.graph.id) { inclusive = true }
                         }
                     }
@@ -139,48 +158,48 @@ private fun NavegacionApp(
         }
 
         // PASO 1 — Proteína. Plato normal → Acompañamientos; "solo proteína" → Carrito.
-        composable(Screen.Proteina.route) {
+        composable(AppRoutes.Proteina.route) {
             ViewProteina(
                 vm = vm,
                 onVolver = { nav.popBackStack() },
-                onIrAcom = { nav.navigate(Screen.Acompanamientos.route) },
-                onIrCarrito = { nav.navigate(Screen.Carrito.route) },
+                onIrAcom = { nav.navigate(AppRoutes.Acompanamientos.route) },
+                onIrCarrito = { nav.navigate(AppRoutes.Carrito.route) },
             )
         }
 
         // PASO 2 — Acompañamientos. Solo avanza si el ViewModel aceptó el plato.
-        composable(Screen.Acompanamientos.route) {
+        composable(AppRoutes.Acompanamientos.route) {
             ViewAcompanamientos(
                 vm = vm,
                 onVolver = { nav.popBackStack() },
                 onAgregar = {
                     if (vm.agregarPlato()) {
-                        nav.navigate(Screen.Carrito.route)
+                        nav.navigate(AppRoutes.Carrito.route)
                     }
                 },
             )
         }
 
         // PASO 3 — Carrito. "Volver" regresa a la portada.
-        composable(Screen.Carrito.route) {
+        composable(AppRoutes.Carrito.route) {
             ViewCarrito(
                 vm = vm,
-                onVolver = { nav.popBackStack(Screen.Home.route, false) },
-                onAgregarOtro = { nav.navigate(Screen.Proteina.route) },
-                onContinuar = { nav.navigate(Screen.Retiro.route) },
+                onVolver = { nav.popBackStack(AppRoutes.Home.route, false) },
+                onAgregarOtro = { nav.navigate(AppRoutes.Proteina.route) },
+                onContinuar = { nav.navigate(AppRoutes.Retiro.route) },
             )
         }
 
         // PASO 4 — Retiro y pago. Al confirmar se limpia la pila hasta home,
         // para que "atrás" no vuelva a un formulario ya enviado.
-        composable(Screen.Retiro.route) {
+        composable(AppRoutes.Retiro.route) {
             ViewRetiro(
                 vm = vm,
                 onVolver = { nav.popBackStack() },
                 onConfirmar = {
                     vm.confirmarPedido {
-                        nav.navigate(Screen.Confirmado.route) {
-                            popUpTo(Screen.Home.route) { inclusive = false }
+                        nav.navigate(AppRoutes.Confirmado.route) {
+                            popUpTo(AppRoutes.Home.route) { inclusive = false }
                             launchSingleTop = true
                         }
                     }
@@ -189,21 +208,21 @@ private fun NavegacionApp(
         }
 
         // PASO 5 — Confirmación
-        composable(Screen.Confirmado.route) {
+        composable(AppRoutes.Confirmado.route) {
             ViewConfirmado(
                 vm = vm,
-                onConsultar = { nav.navigate(Screen.MiPedido.route) },
-                onOtroPedido = { nav.popBackStack(Screen.Home.route, false) },
+                onConsultar = { nav.navigate(AppRoutes.MiPedido.route) },
+                onOtroPedido = { nav.popBackStack(AppRoutes.Home.route, false) },
             )
         }
 
         // PASO 6 — Estado del último pedido del usuario
-        composable(Screen.MiPedido.route) {
+        composable(AppRoutes.MiPedido.route) {
             ViewMiPedido(
                 vm = vm,
-                onVolver = { nav.popBackStack(Screen.Home.route, false) },
-                onCart = { nav.navigate(Screen.Carrito.route) },
-                onEmpezar = { nav.popBackStack(Screen.Home.route, false) },
+                onVolver = { nav.popBackStack(AppRoutes.Home.route, false) },
+                onCart = { nav.navigate(AppRoutes.Carrito.route) },
+                onEmpezar = { nav.popBackStack(AppRoutes.Home.route, false) },
             )
         }
     }
