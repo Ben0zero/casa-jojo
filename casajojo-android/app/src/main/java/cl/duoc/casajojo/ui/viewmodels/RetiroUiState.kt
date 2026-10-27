@@ -12,8 +12,6 @@ data class RetiroUiState(
     val horaRetiro: String = "13:00",
     val formaPago: String = "Transferencia",
     val indicaciones: String = "",
-    /** NUEVO (P2): texto del QR de transferencia escaneado, o null si no se escaneó. */
-    val codigoQr: String? = null,
     val errores: RetiroErrores = RetiroErrores(),
     /** true después del primer "Confirmar pedido" (validación en tiempo real). */
     val intentado: Boolean = false,

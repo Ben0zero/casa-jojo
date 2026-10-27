@@ -205,14 +205,6 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         retiro = retiro.copy(indicaciones = v)
     }
 
-    /**
-     * NUEVO (P2): guarda el texto del QR de transferencia. Antes vivía solo en
-     * la pantalla y se perdía al ir al carrito y volver.
-     */
-    fun onCodigoQr(v: String) {
-        retiro = retiro.copy(codigoQr = v)
-    }
-
     /** PASO 3. Quita el plato en la posición indicada. */
     fun quitarPlato(index: Int) {
         if (index in cart.indices) {

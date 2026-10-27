@@ -1,0 +1,4 @@
+<resources>
+    <!-- Fondo usado por el ícono adaptativo del launcher. -->
+    <color name="ic_launcher_background">#008A55</color>
+</resources>
