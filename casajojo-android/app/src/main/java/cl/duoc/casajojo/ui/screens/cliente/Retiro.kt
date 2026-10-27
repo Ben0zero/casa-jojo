@@ -12,6 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +30,7 @@ import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.components.Nota
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 private val HORAS_RETIRO = listOf("12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00")
 private val FORMAS_PAGO = listOf("Transferencia", "Pagar al retirar")
@@ -47,6 +51,9 @@ fun ViewRetiro(
     // RECURSO NATIVO: se pide el permiso de notificaciones aquí (y no al abrir
     // la app) porque es el momento en que el aviso tiene sentido para el usuario.
     PedirPermisoNotificaciones()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var codigoQr by remember { mutableStateOf<String?>(null) }
+    var errorQr by remember { mutableStateOf<String?>(null) }
 
     // NUEVO (fase 1): al entrar, el nombre se rellena con el de la cuenta.
     // LaunchedEffect(usuario) corre cuando llega el usuario desde DataStore/Room.
@@ -73,6 +80,31 @@ fun ViewRetiro(
 
             Text("Forma de pago", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
             ChipRow(FORMAS_PAGO, vm.formaPago, { vm.formaPago = it })
+
+            if (vm.formaPago == "Transferencia") {
+                Spacer(Modifier.height(12.dp))
+                Boton(
+                    "Escanear QR de transferencia",
+                    onClick = {
+                        errorQr = null
+                        GmsBarcodeScanning.getClient(context)
+                            .startScan()
+                            .addOnSuccessListener { resultado ->
+                                codigoQr = resultado.rawValue ?: "QR leído sin texto"
+                            }
+                            .addOnFailureListener {
+                                errorQr = "No se pudo leer el código QR"
+                            }
+                    },
+                    estilo = "fantasma",
+                )
+                codigoQr?.let {
+                    Text("QR leído: $it", color = androidx.compose.material3.MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+                }
+                errorQr?.let {
+                    Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
 
             Text("Indicaciones (opcional)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
             OutlinedTextField(

@@ -41,6 +41,7 @@ fun ViewHome(
     vm: ClienteViewModel,
     onComenzar: () -> Unit,
     onMiPedido: () -> Unit,
+    onPerfil: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
     // NUEVO (fase 1): datos del usuario logueado para el saludo.
@@ -69,6 +70,16 @@ fun ViewHome(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Mi perfil",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onPerfil)
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                 )
                 Text(
                     "Cerrar sesión",
