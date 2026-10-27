@@ -30,15 +30,14 @@ import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.components.Nota
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 private val HORAS_RETIRO = listOf("12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00")
-private val FORMAS_PAGO = listOf("Transferencia", "Pagar al retirar")
+private val FORMAS_PAGO = listOf("Transferencia", "Pagar en tienda")
 
 /**
  * PASO 4 — Retiro y pago.
  * El cliente indica a nombre de quién, la hora de retiro, cómo pagará
- * (solo como anotación) e indicaciones opcionales.
+  * y, si corresponde, abre una plataforma de pago mediante un QR.
  */
 @Composable
 fun ViewRetiro(
@@ -51,9 +50,6 @@ fun ViewRetiro(
     // RECURSO NATIVO: se pide el permiso de notificaciones aquí (y no al abrir
     // la app) porque es el momento en que el aviso tiene sentido para el usuario.
     PedirPermisoNotificaciones()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var codigoQr by remember { mutableStateOf<String?>(null) }
-    var errorQr by remember { mutableStateOf<String?>(null) }
 
     // NUEVO (fase 1): al entrar, el nombre se rellena con el de la cuenta.
     // LaunchedEffect(usuario) corre cuando llega el usuario desde DataStore/Room.
@@ -81,31 +77,6 @@ fun ViewRetiro(
             Text("Forma de pago", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
             ChipRow(FORMAS_PAGO, vm.formaPago, { vm.formaPago = it })
 
-            if (vm.formaPago == "Transferencia") {
-                Spacer(Modifier.height(12.dp))
-                Boton(
-                    "Escanear QR de transferencia",
-                    onClick = {
-                        errorQr = null
-                        GmsBarcodeScanning.getClient(context)
-                            .startScan()
-                            .addOnSuccessListener { resultado ->
-                                codigoQr = resultado.rawValue ?: "QR leído sin texto"
-                            }
-                            .addOnFailureListener {
-                                errorQr = "No se pudo leer el código QR"
-                            }
-                    },
-                    estilo = "fantasma",
-                )
-                codigoQr?.let {
-                    Text("QR leído: $it", color = androidx.compose.material3.MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
-                }
-                errorQr?.let {
-                    Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
-                }
-            }
-
             Text("Indicaciones (opcional)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
             OutlinedTextField(
                 value = vm.indicaciones,
@@ -116,7 +87,7 @@ fun ViewRetiro(
             )
 
             Nota(
-                "Es una anotación: recuerda llevar el medio de pago que elijas al retirar tu pedido."
+                "El método de pago se usará al retirar el pedido. Si elegiste pagar en tienda, podrás escanear el QR desde Mi pedido cuando esté listo."
             )
 
             Spacer(Modifier.height(22.dp))
