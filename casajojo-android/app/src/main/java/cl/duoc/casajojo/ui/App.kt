@@ -14,7 +14,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.graphics.Bitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,8 +43,10 @@ import cl.duoc.casajojo.ui.screens.cliente.ViewHome
 import cl.duoc.casajojo.ui.screens.cliente.ViewMiPedido
 import cl.duoc.casajojo.ui.screens.cliente.ViewProteina
 import cl.duoc.casajojo.ui.screens.cliente.ViewRetiro
+import cl.duoc.casajojo.ui.screens.cliente.ViewPerfil
 import cl.duoc.casajojo.navigation.AppRoutes
 import cl.duoc.casajojo.ui.theme.CasaJojoTheme
+import cl.duoc.casajojo.data.local.PerfilPhotoStorage
 
 /**
  * Punto de entrada de la UI y mapa de navegación de la app.
@@ -60,6 +71,16 @@ fun CasaJojoApp() {
     val authVm: AuthViewModel = viewModel()
     // ClienteViewModel: carrito y pedidos. Uno solo para todo el flujo.
     val clienteVm: ClienteViewModel = viewModel()
+    var fotoPerfil by remember { mutableStateOf<Bitmap?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Recupera la foto guardada cada vez que se inicia el proceso de la app.
+    LaunchedEffect(Unit) {
+        fotoPerfil = withContext(Dispatchers.IO) {
+            PerfilPhotoStorage.cargar(context)
+        }
+    }
 
     val sesion by authVm.estadoSesion.collectAsState()
 
@@ -83,7 +104,18 @@ fun CasaJojoApp() {
                         val inicio = remember {
                             if (sesion is EstadoSesion.Activa) AppRoutes.Home.route else AppRoutes.Login.route
                         }
-                        NavegacionApp(rememberNavController(), inicio, authVm, clienteVm)
+                        NavegacionApp(
+                            rememberNavController(), inicio, authVm, clienteVm, fotoPerfil,
+                        ) { imagen ->
+                            scope.launch(Dispatchers.IO) {
+                                val guardada = PerfilPhotoStorage.guardar(context, imagen)
+                                if (guardada) {
+                                    withContext(Dispatchers.Main) {
+                                        fotoPerfil = imagen
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -97,6 +129,8 @@ private fun NavegacionApp(
     inicio: String,
     authVm: AuthViewModel,
     vm: ClienteViewModel,
+    fotoPerfil: Bitmap?,
+    onFotoPerfil: (Bitmap) -> Unit,
 ) {
     /** Ir al inicio borrando todo lo anterior (el botón atrás ya no vuelve al login). */
     fun irAlInicioLimpiando() = nav.navigate(AppRoutes.Home.route) {
@@ -146,6 +180,7 @@ private fun NavegacionApp(
                 vm = vm,
                 onComenzar = { nav.navigate(AppRoutes.Proteina.route) },
                 onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
+                onPerfil = { nav.navigate(AppRoutes.Perfil.route) },
                 onCerrarSesion = {
                     authVm.cerrarSesion {
                         vm.limpiarTodo() // descarta el carrito del usuario anterior
@@ -154,6 +189,14 @@ private fun NavegacionApp(
                         }
                     }
                 },
+            )
+        }
+
+        composable(AppRoutes.Perfil.route) {
+            ViewPerfil(
+                foto = fotoPerfil,
+                onFotoCambiada = onFotoPerfil,
+                onVolver = { nav.popBackStack() },
             )
         }
 

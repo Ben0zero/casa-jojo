@@ -21,4 +21,5 @@ sealed class AppRoutes(val route: String) {
     data object Retiro : AppRoutes("retiro")
     data object Confirmado : AppRoutes("confirmado")
     data object MiPedido : AppRoutes("mi_pedido")
+    data object Perfil : AppRoutes("perfil")
 }

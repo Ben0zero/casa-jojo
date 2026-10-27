@@ -53,6 +53,7 @@ dependencies {
 
     // NUEVO (fase 1): DataStore Preferences, guarda la sesión del usuario.
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
 

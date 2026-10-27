@@ -6,6 +6,7 @@
          anteriores se ignora. El permiso se solicita en runtime desde
          la pantalla de Retiro (PedirPermisoNotificaciones). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:name=".CasaJojoApplication"
