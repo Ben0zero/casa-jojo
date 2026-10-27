@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El logo se coloca dentro del área segura del ícono adaptativo para que
+     no sea cortado por los launchers circulares o redondeados. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="12%"
+    android:drawable="@drawable/logo_casa_jojo" />
