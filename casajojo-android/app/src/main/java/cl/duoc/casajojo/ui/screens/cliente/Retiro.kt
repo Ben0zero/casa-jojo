@@ -6,22 +6,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.CampoTexto
 import cl.duoc.casajojo.ui.components.ChipRow
+import cl.duoc.casajojo.data.local.entity.Usuario
 import cl.duoc.casajojo.ui.components.ErrorEcho
+import cl.duoc.casajojo.ui.components.EstiloBoton
 import cl.duoc.casajojo.ui.components.PasoBar
 import cl.duoc.casajojo.ui.components.PedirPermisoNotificaciones
 import cl.duoc.casajojo.ui.components.Titulo
@@ -43,6 +47,7 @@ private val FORMAS_PAGO = listOf("Transferencia", "Pagar al retirar")
 @Composable
 fun ViewRetiro(
     vm: ClienteViewModel,
+    usuario: Usuario?,
     onVolver: () -> Unit,
     onConfirmar: () -> Unit,
 ) {
@@ -52,13 +57,15 @@ fun ViewRetiro(
     // la app) porque es el momento en que el aviso tiene sentido para el usuario.
     PedirPermisoNotificaciones()
     val context = androidx.compose.ui.platform.LocalContext.current
-    var codigoQr by remember { mutableStateOf<String?>(null) }
-    var errorQr by remember { mutableStateOf<String?>(null) }
+    // El QR leído vive en el ViewModel (vm.retiro.codigoQr); el error de lectura
+    // es solo un aviso de esta pantalla (rememberSaveable: sobrevive al girar).
+    var errorQr by rememberSaveable { mutableStateOf<String?>(null) }
 
     // NUEVO (fase 1): al entrar, el nombre se rellena con el de la cuenta.
     // LaunchedEffect(usuario) corre cuando llega el usuario desde DataStore/Room.
-    val usuario by vm.usuario.collectAsState()
     LaunchedEffect(usuario) { vm.prellenarNombre(usuario?.nombre) }
+
+    val retiro = vm.retiro
 
     Pantalla {
         Column {
@@ -66,22 +73,26 @@ fun ViewRetiro(
             PasoBar(3)
             Titulo("Retiro y pago")
 
-            Text("Nombre para el retiro", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
-            OutlinedTextField(
-                value = vm.nombre,
-                onValueChange = { vm.nombre = it },
-                placeholder = { Text("Nombre para el retiro") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+            // CAMBIO (P1): mismo campo que en el registro: ícono, error bajo el
+            // campo y ✓ cuando ya se validó y está correcto.
+            CampoTexto(
+                etiqueta = "Nombre para el retiro",
+                valor = retiro.nombre,
+                onCambio = vm::onNombre,
+                error = retiro.errores.nombre,
+                placeholder = "Nombre para el retiro",
+                icono = Icons.Filled.Person,
+                validado = retiro.intentado,
+                enabled = !vm.enRegistro,
             )
 
             Text("Hora de retiro", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-            ChipRow(HORAS_RETIRO, vm.horaRetiro, { vm.horaRetiro = it })
+            ChipRow(HORAS_RETIRO, retiro.horaRetiro, vm::onHoraRetiro)
 
             Text("Forma de pago", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-            ChipRow(FORMAS_PAGO, vm.formaPago, { vm.formaPago = it })
+            ChipRow(FORMAS_PAGO, retiro.formaPago, vm::onFormaPago)
 
-            if (vm.formaPago == "Transferencia") {
+            if (retiro.formaPago == "Transferencia") {
                 Spacer(Modifier.height(12.dp))
                 Boton(
                     "Escanear QR de transferencia",
@@ -90,15 +101,15 @@ fun ViewRetiro(
                         GmsBarcodeScanning.getClient(context)
                             .startScan()
                             .addOnSuccessListener { resultado ->
-                                codigoQr = resultado.rawValue ?: "QR leído sin texto"
+                                vm.onCodigoQr(resultado.rawValue ?: "QR leído sin texto")
                             }
                             .addOnFailureListener {
                                 errorQr = "No se pudo leer el código QR"
                             }
                     },
-                    estilo = "fantasma",
+                    estilo = EstiloBoton.Fantasma,
                 )
-                codigoQr?.let {
+                retiro.codigoQr?.let {
                     Text("QR leído: $it", color = androidx.compose.material3.MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
                 }
                 errorQr?.let {
@@ -108,8 +119,8 @@ fun ViewRetiro(
 
             Text("Indicaciones (opcional)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
             OutlinedTextField(
-                value = vm.indicaciones,
-                onValueChange = { vm.indicaciones = it },
+                value = retiro.indicaciones,
+                onValueChange = vm::onIndicaciones,
                 placeholder = { Text("Ej.: sin ají, bien cocido") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3,
@@ -129,7 +140,7 @@ fun ViewRetiro(
             Boton(
                 texto = if (vm.enRegistro) "Registrando…" else "Confirmar pedido",
                 onClick = onConfirmar,
-                estilo = "acento",
+                estilo = EstiloBoton.Acento,
                 enabled = !vm.enRegistro,
             )
         }

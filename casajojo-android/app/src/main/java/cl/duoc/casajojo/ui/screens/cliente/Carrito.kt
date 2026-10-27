@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.EstiloBoton
 import cl.duoc.casajojo.ui.components.Titulo
 import cl.duoc.casajojo.ui.components.TotalAnimado
 import cl.duoc.casajojo.ui.components.Volver
@@ -116,7 +117,7 @@ fun ViewCarrito(
             Boton(
                 if (vm.cart.isEmpty()) "Elegir proteína" else "Agregar otro plato",
                 onClick = onAgregarOtro,
-                estilo = "fantasma",
+                estilo = EstiloBoton.Fantasma,
             )
             Spacer(Modifier.height(10.dp))
             // CORRECCIÓN: no se puede continuar a Retiro con el carrito vacío.
@@ -124,7 +125,7 @@ fun ViewCarrito(
             Boton(
                 "Continuar",
                 onClick = onContinuar,
-                estilo = "acento",
+                estilo = EstiloBoton.Acento,
                 enabled = vm.cart.isNotEmpty(),
             )
         }

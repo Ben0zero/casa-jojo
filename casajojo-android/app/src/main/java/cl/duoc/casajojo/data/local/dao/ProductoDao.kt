@@ -11,9 +11,6 @@ interface ProductoDao {
     @Query("SELECT * FROM productos ORDER BY id")
     fun todos(): Flow<List<Producto>>
 
-    @Query("SELECT * FROM productos ORDER BY id")
-    suspend fun todosUnaVez(): List<Producto>
-
     @Query("SELECT COUNT(*) FROM productos")
     suspend fun count(): Int
 

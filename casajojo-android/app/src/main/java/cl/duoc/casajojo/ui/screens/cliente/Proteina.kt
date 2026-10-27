@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.dp
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import cl.duoc.casajojo.ui.components.Boton
 import cl.duoc.casajojo.ui.components.ErrorEcho
+import cl.duoc.casajojo.ui.components.EstiloBoton
+import cl.duoc.casajojo.ui.components.EstiloMarcador
 import cl.duoc.casajojo.ui.components.OptionCard
 import cl.duoc.casajojo.ui.components.PasoBar
 import cl.duoc.casajojo.ui.components.Titulo
@@ -34,7 +36,7 @@ fun ViewProteina(
                 Boton(
                     texto = "Ver mi pedido (${vm.cart.size})  ·  ${vm.total.money()}",
                     onClick = onIrCarrito,
-                    estilo = "acento",
+                    estilo = EstiloBoton.Acento,
                 )
             }
         },
@@ -66,7 +68,7 @@ fun ViewProteina(
             OptionCard(
                 texto = "Solo la proteína, sin acompañamientos",
                 precio = ReglasPedido.PRECIO_SOLO_PROTEINA.money(),
-                estilo = "check",
+                estilo = EstiloMarcador.Check,
                 marcado = vm.solo,
                 onClick = { vm.toggleSolo() },
             )

@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey
  * - La contraseña NUNCA se guarda tal cual (RNF-04). Se guarda:
  *     passwordHash = resultado de cifrar la contraseña con PBKDF2
  *     salt         = valor aleatorio único por usuario que se mezcla en el cifrado
- *   Ver domain/Contrasenas.kt.
+ *   Ver utils/Contrasenas.kt.
  */
 @Entity(
     tableName = "usuarios",

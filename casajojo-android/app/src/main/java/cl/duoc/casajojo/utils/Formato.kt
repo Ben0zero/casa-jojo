@@ -1,9 +1,18 @@
 package cl.duoc.casajojo.utils
 
 import androidx.compose.ui.graphics.Color
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 fun Int.money(): String =
     "$" + this.toString().reversed().chunked(3).joinToString(".").reversed()
+
+private val FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+
+/** Fecha en milisegundos (Pedido.fecha) → "27/10/2026 13:05", en la zona horaria del teléfono. */
+fun Long.fechaHora(): String =
+    Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(FORMATO_FECHA)
 
 fun textoEstadoPedido(estado: String): String = when (estado) {
     "recibido" -> "Recibido"

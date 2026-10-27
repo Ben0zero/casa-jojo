@@ -15,6 +15,11 @@ data class LoginUiState(
     val correo: String = "",
     val password: String = "",
     val errores: LoginErrores = LoginErrores(),
+    /**
+     * NUEVO (P1): true después del primer "Ingresar". Desde ahí cada campo se
+     * revalida mientras se escribe y muestra ✓ o ⚠ en tiempo real.
+     */
+    val intentado: Boolean = false,
     /** true mientras se verifica la contraseña: desactiva el botón y muestra "Ingresando…". */
     val cargando: Boolean = false,
     /** Aviso para el Snackbar. Se muestra una vez y la pantalla lo limpia. */
@@ -29,6 +34,8 @@ data class RegistroUiState(
     val password: String = "",
     val confirmar: String = "",
     val errores: RegistroErrores = RegistroErrores(),
+    /** NUEVO (P1): true después del primer "Crear cuenta" (validación en tiempo real). */
+    val intentado: Boolean = false,
     /** true mientras se crea la cuenta (guía datastore: "guardando"). */
     val guardando: Boolean = false,
     val mensaje: String? = null,

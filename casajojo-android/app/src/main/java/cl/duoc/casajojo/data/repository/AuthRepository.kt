@@ -22,6 +22,20 @@ sealed class ResultadoAuth {
 }
 
 /**
+ * NUEVO (P3): lo que AuthViewModel necesita de las cuentas, como interfaz.
+ * La app usa AuthRepository (Room + DataStore); los tests usan una versión
+ * falsa en memoria, así el ViewModel se prueba sin emulador.
+ */
+interface CuentasRepository {
+    /** Usuario con sesión activa (o null). */
+    val usuarioActual: Flow<Usuario?>
+    suspend fun ultimoCorreo(): String
+    suspend fun registrar(nombre: String, correo: String, telefono: String, password: String): ResultadoAuth
+    suspend fun iniciarSesion(correo: String, password: String): ResultadoAuth
+    suspend fun cerrarSesion()
+}
+
+/**
  * Todo lo de cuentas y sesión pasa por aquí:
  * - Room (tabla usuarios) guarda las cuentas.
  * - DataStore (SesionPreferences) recuerda quién inició sesión.
@@ -29,7 +43,7 @@ sealed class ResultadoAuth {
 class AuthRepository(
     db: CasaJojoDatabase,
     private val sesion: SesionPreferences,
-) {
+) : CuentasRepository {
     private val usuarios = db.usuarioDao()
 
     /**
@@ -38,14 +52,14 @@ class AuthRepository(
      * escuchar al usuario anterior y empieza a escuchar al nuevo en Room.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val usuarioActual: Flow<Usuario?> = sesion.usuarioId.flatMapLatest { id ->
+    override val usuarioActual: Flow<Usuario?> = sesion.usuarioId.flatMapLatest { id ->
         if (id == null) flowOf(null) else usuarios.porId(id)
     }
 
-    suspend fun ultimoCorreo(): String = sesion.ultimoCorreo()
+    override suspend fun ultimoCorreo(): String = sesion.ultimoCorreo()
 
     /** Crea la cuenta, cifra la contraseña y deja la sesión iniciada. */
-    suspend fun registrar(
+    override suspend fun registrar(
         nombre: String,
         correo: String,
         telefono: String,
@@ -82,7 +96,7 @@ class AuthRepository(
     }
 
     /** Verifica correo y contraseña; si coinciden, guarda la sesión. */
-    suspend fun iniciarSesion(correo: String, password: String): ResultadoAuth {
+    override suspend fun iniciarSesion(correo: String, password: String): ResultadoAuth {
         val correoNormal = ValidacionesAuth.normalizarCorreo(correo)
 
         // Usamos el MISMO mensaje si el correo no existe o si la contraseña está
@@ -99,5 +113,5 @@ class AuthRepository(
         return ResultadoAuth.Exito(usuario)
     }
 
-    suspend fun cerrarSesion() = sesion.cerrar()
+    override suspend fun cerrarSesion() = sesion.cerrar()
 }

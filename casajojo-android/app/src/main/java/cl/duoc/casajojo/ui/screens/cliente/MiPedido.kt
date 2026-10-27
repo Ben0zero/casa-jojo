@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -22,11 +23,13 @@ import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.ui.layouts.BarraSuperior
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.EstiloBoton
 import cl.duoc.casajojo.ui.components.Pill
 import cl.duoc.casajojo.ui.components.Titulo
 import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.utils.colorEstadoPago
 import cl.duoc.casajojo.utils.colorEstadoPedido
+import cl.duoc.casajojo.utils.fechaHora
 import cl.duoc.casajojo.utils.money
 import cl.duoc.casajojo.utils.textoEstadoPago
 import cl.duoc.casajojo.utils.textoEstadoPedido
@@ -34,10 +37,12 @@ import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 
 /**
- * PASO 6 — Mi pedido (RF-19: consultar estado).
- * Muestra el último pedido guardado en este dispositivo. Como está conectado
- * a Room mediante un Flow, si el estado cambia en la base de datos la
- * pantalla se actualiza sola.
+ * PASO 6 — Mis pedidos (RF-19: consultar estado).
+ * CAMBIO: muestra TODOS los pedidos del usuario, el más reciente primero.
+ * Antes solo se pedía el último a Room (LIMIT 1), así que al hacer un pedido
+ * nuevo parecía que el anterior se borraba (seguía guardado, pero no se mostraba).
+ * Como está conectado a Room mediante un Flow, si un estado cambia en la base
+ * de datos la pantalla se actualiza sola.
  */
 @Composable
 fun ViewMiPedido(
@@ -46,19 +51,20 @@ fun ViewMiPedido(
     onCart: () -> Unit,
     onEmpezar: () -> Unit,
 ) {
-    // CORRECCIÓN: suscripción real al Flow (antes siempre mostraba "Aún no tienes pedidos").
-    val pedido by vm.ultimoPedido.collectAsState()
+    // collectAsState(): suscripción real al Flow de Room.
+    val pedidos by vm.misPedidos.collectAsState()
 
     Column(Modifier.fillMaxWidth()) {
         BarraSuperior(cartCount = vm.cart.size, onCartClick = onCart)
         Pantalla {
             Column {
                 Volver(onVolver)
-                Titulo("Mi pedido")
-                // "pedido" es un delegado (by), por eso lo copiamos a una val local
-                // para que Kotlin pueda hacer el smart cast de PedidoWithPlatos? a no nulo.
-                val actual = pedido
-                if (actual == null) {
+                Titulo(
+                    "Mis pedidos",
+                    if (pedidos.isEmpty()) null
+                    else "${pedidos.size} ${if (pedidos.size == 1) "pedido" else "pedidos"} · el más reciente primero",
+                )
+                if (pedidos.isEmpty()) {
                     Spacer(Modifier.height(12.dp))
                     Text(
                         "Aún no tienes pedidos registrados en este dispositivo.",
@@ -66,13 +72,20 @@ fun ViewMiPedido(
                         fontSize = 16.sp,
                     )
                     Spacer(Modifier.height(20.dp))
-                    Boton("Hacer un pedido", onClick = onEmpezar, estilo = "acento")
+                    Boton("Hacer un pedido", onClick = onEmpezar, estilo = EstiloBoton.Acento)
                 } else {
-                    TarjetaPedido(actual)
+                    // forEach y no LazyColumn: Pantalla ya tiene scroll vertical, y
+                    // una LazyColumn dentro de otro scroll vertical hace fallar la app.
+                    // key: Compose identifica cada tarjeta por su id, así las
+                    // animaciones de estado no se mezclan entre pedidos.
+                    pedidos.forEachIndexed { i, datos ->
+                        key(datos.pedido.id) {
+                            TarjetaPedido(datos, esUltimo = i == 0)
+                        }
+                    }
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Estado: ${textoEstadoPedido(actual.pedido.estadoPedido)} · Pago: ${textoEstadoPago(actual.pedido.estadoPago)}. " +
-                                "Puedes consultar esta pantalla para seguir tu pedido.",
+                        "Puedes volver a esta pantalla para seguir el estado de tus pedidos.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                     )
@@ -83,12 +96,16 @@ fun ViewMiPedido(
 }
 
 @Composable
-private fun TarjetaPedido(datos: PedidoWithPlatos) {
+private fun TarjetaPedido(datos: PedidoWithPlatos, esUltimo: Boolean) {
     val p = datos.pedido
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        // El pedido más reciente se destaca con el borde del color de acento.
+        border = androidx.compose.foundation.BorderStroke(
+            if (esUltimo) 1.5.dp else 1.dp,
+            if (esUltimo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -104,6 +121,11 @@ private fun TarjetaPedido(datos: PedidoWithPlatos) {
                     Pill(textoEstadoPago(estado), colorEstadoPago(estado))
                 }
             }
+            Text(
+                (if (esUltimo) "Último pedido · " else "") + p.fecha.fechaHora(),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(8.dp))
             Text("A nombre de ${p.nombre}", fontSize = 15.sp)
             Text(

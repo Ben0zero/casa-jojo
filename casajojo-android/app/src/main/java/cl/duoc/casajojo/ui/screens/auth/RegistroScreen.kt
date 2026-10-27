@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -21,6 +26,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cl.duoc.casajojo.ui.components.Boton
 import cl.duoc.casajojo.ui.components.CampoTexto
+import cl.duoc.casajojo.ui.components.EstiloBoton
 import cl.duoc.casajojo.ui.components.Titulo
 import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.ui.layouts.Pantalla
@@ -68,6 +74,8 @@ fun RegistroScreen(
                     onCambio = vm::onRegistroNombre,
                     error = estado.errores.nombre,
                     placeholder = "Nombre y apellido",
+                    icono = Icons.Filled.Person,
+                    validado = estado.intentado,
                     enabled = activo,
                 )
                 CampoTexto(
@@ -76,6 +84,8 @@ fun RegistroScreen(
                     onCambio = vm::onRegistroCorreo,
                     error = estado.errores.correo,
                     placeholder = "nombre@correo.cl",
+                    icono = Icons.Filled.Email,
+                    validado = estado.intentado,
                     tipoTeclado = KeyboardType.Email,
                     enabled = activo,
                 )
@@ -85,6 +95,8 @@ fun RegistroScreen(
                     onCambio = vm::onRegistroTelefono,
                     error = estado.errores.telefono,
                     placeholder = "9 1234 5678",
+                    icono = Icons.Filled.Phone,
+                    validado = estado.intentado,
                     tipoTeclado = KeyboardType.Phone,
                     enabled = activo,
                 )
@@ -94,6 +106,8 @@ fun RegistroScreen(
                     onCambio = vm::onRegistroPassword,
                     error = estado.errores.password,
                     placeholder = "Mínimo 6, con letras y números",
+                    icono = Icons.Filled.Lock,
+                    validado = estado.intentado,
                     esContrasena = true,
                     enabled = activo,
                 )
@@ -102,6 +116,8 @@ fun RegistroScreen(
                     valor = estado.confirmar,
                     onCambio = vm::onRegistroConfirmar,
                     error = estado.errores.confirmar,
+                    icono = Icons.Filled.Lock,
+                    validado = estado.intentado,
                     esContrasena = true,
                     accionIme = ImeAction.Done,
                     enabled = activo,
@@ -114,7 +130,7 @@ fun RegistroScreen(
                 Boton(
                     texto = if (estado.guardando) "Creando cuenta…" else "Crear cuenta",
                     onClick = enviar,
-                    estilo = "acento",
+                    estilo = EstiloBoton.Acento,
                     enabled = activo,
                 )
             }

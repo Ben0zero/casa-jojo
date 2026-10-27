@@ -18,14 +18,12 @@ import cl.duoc.casajojo.R
  * notificación del sistema (con el número de pedido y la hora de retiro).
  * Al tocarla se abre la app.
  *
- * El canal se crea cada vez que se notifica: crear un canal ya existente es
- * una operación idempotente (no lanza error ni duplica), así no hace falta
- * una clase Application solo para esto.
+ * El canal se crea una sola vez al arrancar la app (CasaJojoApplication.onCreate),
+ * así que pedidoRegistrado() ya no necesita crearlo de nuevo.
  */
 object Notificaciones {
 
     const val CANAL_PEDIDOS = "pedidos"
-    private const val ID_PEDIDO_REGISTRADO = 1001
 
     /** Crea el canal en Android 8.0+ (obligatorio desde API 26). */
     fun crearCanal(context: Context) {
@@ -48,8 +46,6 @@ object Notificaciones {
      * NotificationManagerCompat simplemente no muestra nada: no hay crash.
      */
     fun pedidoRegistrado(context: Context, numero: Int, horaRetiro: String) {
-        crearCanal(context)
-
         val abrirApp = PendingIntent.getActivity(
             context,
             numero,
@@ -69,8 +65,11 @@ object Notificaciones {
             .build()
 
         // En API 33+ el permiso lo pide la UI (ver PedirPermisoNotificaciones).
+        // CORRECCIÓN: antes todas las notificaciones usaban el mismo id (1001), así
+        // que la de un pedido nuevo REEMPLAZABA a la del anterior. Ahora el id es
+        // el número de pedido: cada pedido tiene su propia notificación.
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            NotificationManagerCompat.from(context).notify(ID_PEDIDO_REGISTRADO, notificacion)
+            NotificationManagerCompat.from(context).notify(numero, notificacion)
         }
     }
 }

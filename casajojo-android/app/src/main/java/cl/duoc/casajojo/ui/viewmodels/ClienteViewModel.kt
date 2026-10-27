@@ -11,8 +11,6 @@ import cl.duoc.casajojo.utils.Notificaciones
 import cl.duoc.casajojo.data.local.SesionPreferences
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.data.local.entity.Producto
-import cl.duoc.casajojo.data.local.entity.Usuario
-import cl.duoc.casajojo.data.repository.AuthRepository
 import cl.duoc.casajojo.data.repository.PedidoRepository
 import cl.duoc.casajojo.domain.model.PlatoDraft
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
@@ -32,7 +30,7 @@ import kotlinx.coroutines.launch
  * volver entre Proteína, Acompañamientos, Carrito y Retiro.
  *
  * Tiene dos tipos de estado:
- * 1) Datos que vienen de Room/DataStore como StateFlow (menú, usuario, último pedido).
+ * 1) Datos que vienen de Room/DataStore como StateFlow (menú, último pedido).
  *    Las pantallas deben leerlos con collectAsState().
  * 2) Estado del formulario en memoria con mutableStateOf (carrito, nombre,
  *    hora, etc.). Compose redibuja automáticamente cuando cambian.
@@ -42,14 +40,10 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
     private val db = CasaJojoDatabase.get(app)
     private val repo = PedidoRepository(db)
 
-    // NUEVO (fase 1): sesión guardada en DataStore y datos del usuario logueado.
+    // NUEVO (fase 1): sesión guardada en DataStore (id del usuario logueado).
+    // CAMBIO (P3): los datos del usuario (nombre para saludar y prellenar) ya no
+    // se cargan aquí: los entrega AuthViewModel y App.kt los pasa a cada pantalla.
     private val sesion = SesionPreferences(app)
-    private val authRepo = AuthRepository(db, sesion)
-
-    /** Usuario con sesión activa; se usa para saludar y prellenar el nombre del retiro. */
-    val usuario: StateFlow<Usuario?> = authRepo.usuarioActual.stateIn(
-        viewModelScope, SharingStarted.WhileSubscribed(5000), null
-    )
 
     // ---------- 1) Datos desde Room ----------
     // stateIn convierte el Flow en StateFlow con un valor inicial.
@@ -74,6 +68,15 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { id -> if (id == null) flowOf(null) else repo.ultimoPedidoDe(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /**
+     * NUEVO: historial de pedidos del usuario logueado (el más reciente primero),
+     * para la pantalla "Mis pedidos". Igual que ultimoPedido, sigue a la sesión.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val misPedidos: StateFlow<List<PedidoWithPlatos>> = sesion.usuarioId
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repo.pedidosDe(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // ---------- 2) Estado del armado del pedido ----------
     // "private set": las pantallas pueden leerlo, pero solo el ViewModel lo modifica.
 
@@ -92,11 +95,13 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
     var acompanamientosSel by mutableStateOf<List<String>>(emptyList())
         private set
 
-    // Campos del formulario de Retiro (los escribe directamente la pantalla).
-    var nombre by mutableStateOf("")
-    var horaRetiro by mutableStateOf("13:00")
-    var formaPago by mutableStateOf("Transferencia")
-    var indicaciones by mutableStateOf("")
+    /**
+     * CAMBIO (P1): ficha del formulario de Retiro. Antes eran cuatro variables
+     * públicas que la pantalla modificaba directo; ahora solo cambian a través
+     * de las funciones onNombre, onHoraRetiro, etc.
+     */
+    var retiro by mutableStateOf(RetiroUiState())
+        private set
 
     /** Mensaje de error a mostrar (lo muestra ErrorEcho como Toast). */
     var error by mutableStateOf<String?>(null)
@@ -111,10 +116,6 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     val total: Int get() = ReglasPedido.total(cart)
-
-    init {
-        resetear()
-    }
 
     fun limpiarError() {
         error = null
@@ -134,7 +135,7 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         if (solo) {
             cart = cart + PlatoDraft(
                 nombreProteina = p.nombre,
-                precio = ReglasPedido.PRECIO_SOLO_PROTEINA,
+                precio = ReglasPedido.precioProteina(p.precio, solo = true),
                 solo = true,
             )
             solo = false
@@ -159,7 +160,14 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
      * Devuelve true si se agregó (App.kt solo navega al carrito en ese caso).
      */
     fun agregarPlato(): Boolean {
-        val proteina = proteinaSeleccionada ?: return false
+        // CORRECCIÓN (P2): si no hay proteína (por ejemplo, Android cerró la app
+        // en segundo plano y se perdió la selección), antes no pasaba nada al
+        // tocar el botón. Ahora se avisa qué hacer.
+        val proteina = proteinaSeleccionada
+        if (proteina == null) {
+            error = "Primero elige una proteína (toca ‹ Volver)"
+            return false
+        }
         val err = ReglasPedido.validarAcompanamientos(false, acompanamientosSel)
         if (err != null) {
             error = err
@@ -174,6 +182,35 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         proteinaSeleccionada = null
         acompanamientosSel = emptyList()
         return true
+    }
+
+    // ---------- PASO 4. Formulario de Retiro ----------
+    // Igual que en el registro: antes del primer "Confirmar" escribir no marca
+    // errores; después, el nombre se revalida en cada cambio (⚠ o ✓ al instante).
+
+    fun onNombre(v: String) {
+        val error = if (retiro.intentado) ReglasPedido.validarRetiro(v).nombre else null
+        retiro = retiro.copy(nombre = v, errores = retiro.errores.copy(nombre = error))
+    }
+
+    fun onHoraRetiro(v: String) {
+        retiro = retiro.copy(horaRetiro = v)
+    }
+
+    fun onFormaPago(v: String) {
+        retiro = retiro.copy(formaPago = v)
+    }
+
+    fun onIndicaciones(v: String) {
+        retiro = retiro.copy(indicaciones = v)
+    }
+
+    /**
+     * NUEVO (P2): guarda el texto del QR de transferencia. Antes vivía solo en
+     * la pantalla y se perdía al ir al carrito y volver.
+     */
+    fun onCodigoQr(v: String) {
+        retiro = retiro.copy(codigoQr = v)
     }
 
     /** PASO 3. Quita el plato en la posición indicada. */
@@ -193,15 +230,22 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
 
         // CORRECCIÓN: antes solo se validaba el nombre y se podía guardar un
         // pedido sin platos ($0). Ahora se valida también el carrito.
-        // firstNotNullOfOrNull devuelve el primer mensaje de error que encuentre.
-        val err = listOf(
-            ReglasPedido.validarCarrito(cart),
-            ReglasPedido.validarNombre(nombre),
-        ).firstNotNullOfOrNull { it }
-        if (err != null) {
-            error = err
+        // El carrito no es un campo del formulario: su error va como aviso (Toast).
+        val errCarrito = ReglasPedido.validarCarrito(cart)
+        if (errCarrito != null) {
+            error = errCarrito
             return
         }
+
+        // CAMBIO (P1): los errores del formulario se marcan bajo cada campo.
+        // El aviso general ayuda si el campo quedó fuera de la pantalla (scroll).
+        val errores = ReglasPedido.validarRetiro(retiro.nombre)
+        retiro = retiro.copy(errores = errores, intentado = true)
+        if (errores.hayErrores) {
+            error = "Revisa los campos marcados"
+            return
+        }
+        val datos = retiro
 
         // viewModelScope.launch inicia una corrutina: el guardado corre sin
         // congelar la pantalla, y se cancela sola si el ViewModel se destruye.
@@ -212,18 +256,18 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
                     // NUEVO (fase 1): el pedido queda asociado a la cuenta.
                     // first() lee una vez el id guardado en DataStore.
                     usuarioId = sesion.usuarioId.first(),
-                    nombre = nombre.trim(),
-                    horaRetiro = horaRetiro,
-                    formaPago = formaPago,
-                    indicaciones = indicaciones.trim(),
+                    nombre = datos.nombre.trim(),
+                    horaRetiro = datos.horaRetiro,
+                    formaPago = datos.formaPago,
+                    indicaciones = datos.indicaciones.trim(),
                     platos = cart.toList(),
                 )
                 ultimoNumero = numero
 
-                // RECURSO NATIVO: aviso del sistema. Se toma la hora ANTES de
-                // resetear(), porque resetear() deja el formulario vacío y la
-                // notificación quedaría sin hora.
-                Notificaciones.pedidoRegistrado(getApplication(), numero, horaRetiro)
+                // RECURSO NATIVO: aviso del sistema. Se usa la hora de "datos"
+                // (copia tomada antes de guardar), porque resetear() deja el
+                // formulario vacío y la notificación quedaría sin hora.
+                Notificaciones.pedidoRegistrado(getApplication(), numero, datos.horaRetiro)
 
                 resetear()
                 despues()
@@ -247,8 +291,8 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
      * el nombre de la cuenta. Si la persona ya escribió algo, no lo pisa.
      */
     fun prellenarNombre(nombreUsuario: String?) {
-        if (nombre.isBlank() && !nombreUsuario.isNullOrBlank()) {
-            nombre = nombreUsuario
+        if (retiro.nombre.isBlank() && !nombreUsuario.isNullOrBlank()) {
+            onNombre(nombreUsuario)
         }
     }
 
@@ -264,10 +308,7 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
         solo = false
         proteinaSeleccionada = null
         acompanamientosSel = emptyList()
-        nombre = ""
-        horaRetiro = "13:00"
-        formaPago = "Transferencia"
-        indicaciones = ""
+        retiro = RetiroUiState()
         cart = emptyList()
     }
 }

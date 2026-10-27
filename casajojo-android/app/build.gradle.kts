@@ -13,8 +13,8 @@ android {
         applicationId = "cl.duoc.casajojo"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0" // fase 1: login y sesión
+        versionCode = 3
+        versionName = "0.3.0" // íconos y validación en tiempo real, foto HD, cerrar sesión en Perfil
     }
 
     buildTypes {
@@ -43,6 +43,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -56,6 +57,8 @@ dependencies {
     implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
+    // Tests de ViewModel: controla las corrutinas (Dispatchers.Main, runTest).
+    testImplementation(libs.kotlinx.coroutines.test)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

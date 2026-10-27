@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Carpetas que FileProvider puede compartir con otras apps.
+     Solo cacheDir/fotos: ahí la cámara deja la captura temporal. -->
+<paths>
+    <cache-path
+        name="fotos"
+        path="fotos/" />
+</paths>

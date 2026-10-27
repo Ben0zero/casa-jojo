@@ -60,7 +60,7 @@ import cl.duoc.casajojo.data.local.PerfilPhotoStorage
  *              ▲  └──────(solo proteína)──────────┘  │
  *              └──────────── "Agregar otro" ─────────┘
  *
- *   home ── "Cerrar sesión" ──► login (se borra la pila de pantallas)
+ *   home ──► perfil ── "Cerrar sesión" ──► login (se borra la pila de pantallas)
  *
  * Las pantallas NO navegan solas: reciben lambdas (onVolver, onContinuar…) y
  * aquí se decide a dónde lleva cada una.
@@ -68,7 +68,8 @@ import cl.duoc.casajojo.data.local.PerfilPhotoStorage
 @Composable
 fun CasaJojoApp() {
     // AuthViewModel: login, registro y estado de la sesión (DataStore).
-    val authVm: AuthViewModel = viewModel()
+    // Factory: le entrega el repositorio real (Room + DataStore).
+    val authVm: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
     // ClienteViewModel: carrito y pedidos. Uno solo para todo el flujo.
     val clienteVm: ClienteViewModel = viewModel()
     var fotoPerfil by remember { mutableStateOf<Bitmap?>(null) }
@@ -132,6 +133,11 @@ private fun NavegacionApp(
     fotoPerfil: Bitmap?,
     onFotoPerfil: (Bitmap) -> Unit,
 ) {
+    // Usuario con sesión activa (saludo, perfil y nombre del retiro).
+    // CAMBIO (P3): se toma de AuthViewModel; antes ClienteViewModel lo cargaba por su cuenta.
+    val sesion by authVm.estadoSesion.collectAsState()
+    val usuario = (sesion as? EstadoSesion.Activa)?.usuario
+
     /** Ir al inicio borrando todo lo anterior (el botón atrás ya no vuelve al login). */
     fun irAlInicioLimpiando() = nav.navigate(AppRoutes.Home.route) {
         popUpTo(nav.graph.id) { inclusive = true }
@@ -178,9 +184,20 @@ private fun NavegacionApp(
         composable(AppRoutes.Home.route) {
             ViewHome(
                 vm = vm,
+                usuario = usuario,
                 onComenzar = { nav.navigate(AppRoutes.Proteina.route) },
                 onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
                 onPerfil = { nav.navigate(AppRoutes.Perfil.route) },
+            )
+        }
+
+        // Perfil: foto con la cámara y "Cerrar sesión" (antes estaba en la portada).
+        composable(AppRoutes.Perfil.route) {
+            ViewPerfil(
+                usuario = usuario,
+                foto = fotoPerfil,
+                onFotoCambiada = onFotoPerfil,
+                onVolver = { nav.popBackStack() },
                 onCerrarSesion = {
                     authVm.cerrarSesion {
                         vm.limpiarTodo() // descarta el carrito del usuario anterior
@@ -189,14 +206,6 @@ private fun NavegacionApp(
                         }
                     }
                 },
-            )
-        }
-
-        composable(AppRoutes.Perfil.route) {
-            ViewPerfil(
-                foto = fotoPerfil,
-                onFotoCambiada = onFotoPerfil,
-                onVolver = { nav.popBackStack() },
             )
         }
 
@@ -238,6 +247,7 @@ private fun NavegacionApp(
         composable(AppRoutes.Retiro.route) {
             ViewRetiro(
                 vm = vm,
+                usuario = usuario,
                 onVolver = { nav.popBackStack() },
                 onConfirmar = {
                     vm.confirmarPedido {

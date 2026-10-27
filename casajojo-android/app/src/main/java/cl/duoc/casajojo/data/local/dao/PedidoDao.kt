@@ -28,4 +28,12 @@ interface PedidoDao {
     @Transaction
     @Query("SELECT * FROM pedidos WHERE usuarioId = :usuarioId ORDER BY id DESC LIMIT 1")
     fun ultimoDelUsuario(usuarioId: Long): Flow<PedidoWithPlatos?>
+
+    /**
+     * NUEVO: historial completo del usuario, del más reciente al más antiguo.
+     * Los pedidos nunca se borraban; la pantalla solo pedía el último (LIMIT 1).
+     */
+    @Transaction
+    @Query("SELECT * FROM pedidos WHERE usuarioId = :usuarioId ORDER BY id DESC")
+    fun todosDelUsuario(usuarioId: Long): Flow<List<PedidoWithPlatos>>
 }

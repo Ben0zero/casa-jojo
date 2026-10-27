@@ -3,7 +3,9 @@ package cl.duoc.casajojo.domain.usecase
 import cl.duoc.casajojo.domain.model.PlatoDraft
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Pruebas unitarias de las reglas de negocio (no necesitan emulador). */
@@ -69,5 +71,21 @@ class ReglasPedidoTest {
     @Test
     fun `Nombre con texto es valido`() {
         assertNull(ReglasPedido.validarNombre("Nicolás"))
+    }
+
+    // ---------- NUEVOS (P1): formulario de Retiro ----------
+
+    @Test
+    fun `Retiro sin nombre marca el error en el campo nombre`() {
+        val errores = ReglasPedido.validarRetiro("")
+        assertEquals("Escribe tu nombre para el retiro", errores.nombre)
+        assertTrue(errores.hayErrores)
+    }
+
+    @Test
+    fun `Retiro con nombre no tiene errores`() {
+        val errores = ReglasPedido.validarRetiro("Nicolás")
+        assertNull(errores.nombre)
+        assertFalse(errores.hayErrores)
     }
 }

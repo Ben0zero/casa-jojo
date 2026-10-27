@@ -32,6 +32,10 @@ class PedidoRepository(private val db: CasaJojoDatabase) {
     fun ultimoPedidoDe(usuarioId: Long): Flow<PedidoWithPlatos?> =
         pedidos.ultimoDelUsuario(usuarioId)
 
+    /** NUEVO: todos los pedidos del usuario, el más reciente primero. */
+    fun pedidosDe(usuarioId: Long): Flow<List<PedidoWithPlatos>> =
+        pedidos.todosDelUsuario(usuarioId)
+
     /**
      * Guarda un pedido completo y devuelve su número correlativo.
      * Estado inicial: pedido "recibido" y pago "pendiente".

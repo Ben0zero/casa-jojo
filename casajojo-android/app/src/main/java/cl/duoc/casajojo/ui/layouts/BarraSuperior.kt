@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,25 +44,35 @@ fun BarraSuperior(
             Text("La Casa ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("JoJo", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
         }
-        if (cartCount > 0) {
-            // ANIMACIÓN: el acceso al carrito aparece/desaparece con un
-            // despliegue horizontal en vez de saltar de golpe.
-            AnimatedVisibility(
-                visible = cartCount > 0,
-                enter = fadeIn(tween(200)) + expandHorizontally(tween(250)),
-                exit = fadeOut(tween(150)) + shrinkHorizontally(tween(200)),
+        // ANIMACIÓN: el acceso al carrito aparece/desaparece con un
+        // despliegue horizontal en vez de saltar de golpe.
+        // CORRECCIÓN (P2): antes estaba dentro de un if (cartCount > 0), así que
+        // AnimatedVisibility entraba ya visible y salía sin animación. Ahora es
+        // AnimatedVisibility quien decide cuándo mostrarlo.
+        AnimatedVisibility(
+            visible = cartCount > 0,
+            enter = fadeIn(tween(200)) + expandHorizontally(tween(250)),
+            exit = fadeOut(tween(150)) + shrinkHorizontally(tween(200)),
+        ) {
+            Surface(
+                onClick = onCartClick,
+                shape = RoundedCornerShape(99.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.5.dp, MaterialTheme.colorScheme.outline
+                ),
+                color = Color.Transparent,
             ) {
-                Surface(
-                    onClick = onCartClick,
-                    shape = RoundedCornerShape(99.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.5.dp, MaterialTheme.colorScheme.outline
-                    ),
-                    color = Color.Transparent,
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        Icons.Filled.ShoppingCart,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
                     Text(
-                        "Mi pedido ($cartCount)",
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        " Mi pedido ($cartCount)",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                     )

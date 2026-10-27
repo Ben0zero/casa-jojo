@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -28,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
 import cl.duoc.casajojo.ui.components.CampoTexto
+import cl.duoc.casajojo.ui.components.EstiloBoton
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.viewmodels.AuthViewModel
 import cl.duoc.casajojo.ui.components.Regla
@@ -88,6 +92,8 @@ fun LoginScreen(
                     onCambio = vm::onLoginCorreo,
                     error = estado.errores.correo,
                     placeholder = "nombre@correo.cl",
+                    icono = Icons.Filled.Email,
+                    validado = estado.intentado,
                     tipoTeclado = KeyboardType.Email,
                     enabled = !estado.cargando,
                 )
@@ -96,6 +102,8 @@ fun LoginScreen(
                     valor = estado.password,
                     onCambio = vm::onLoginPassword,
                     error = estado.errores.password,
+                    icono = Icons.Filled.Lock,
+                    validado = estado.intentado,
                     esContrasena = true,
                     accionIme = ImeAction.Done,
                     enabled = !estado.cargando,
@@ -107,7 +115,7 @@ fun LoginScreen(
                 Boton(
                     texto = if (estado.cargando) "Ingresando…" else "Ingresar",
                     onClick = enviar,
-                    estilo = "acento",
+                    estilo = EstiloBoton.Acento,
                     enabled = !estado.cargando,
                 )
 

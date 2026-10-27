@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.EstiloBoton
 import cl.duoc.casajojo.ui.components.Pill
 import cl.duoc.casajojo.utils.compartirTexto
 import cl.duoc.casajojo.utils.colorEstadoPago
@@ -50,8 +53,14 @@ fun ViewConfirmado(
     // CORRECCIÓN: igual que en Home, nos suscribimos al Flow con collectAsState()
     // para que Room entregue el pedido recién guardado. Antes se mostraba "…".
     val ultimoPedido by vm.ultimoPedido.collectAsState()
-    val pedido = ultimoPedido?.pedido
-    val platos = ultimoPedido?.platos.orEmpty()
+    // CORRECCIÓN: el StateFlow recuerda el último valor que tuvo, así que al
+    // llegar aquí puede entregar por un instante el pedido ANTERIOR (hasta que
+    // Room emite el nuevo). Se muestra solo si su número es el recién confirmado;
+    // si no, la tarjeta muestra "…" y "Compartir" no mezcla datos de dos pedidos.
+    // (Si Android cerró la app y se perdió ultimoNumero, se usa el último pedido.)
+    val confirmado = ultimoPedido?.takeIf { vm.ultimoNumero == null || it.pedido.numero == vm.ultimoNumero }
+    val pedido = confirmado?.pedido
+    val platos = confirmado?.platos.orEmpty()
 
     val context = LocalContext.current
     // RECURSO NATIVO: texto que se envía al "share sheet" del sistema.
@@ -89,7 +98,7 @@ fun ViewConfirmado(
             // ultimoNumero lo deja el ViewModel apenas termina de guardar, así que
             // el número aparece de inmediato aunque Room aún no haya emitido.
             Text(
-                "#${vm.ultimoNumero ?: "…"}",
+                "#${vm.ultimoNumero ?: pedido?.numero ?: "…"}",
                 fontSize = 44.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -129,17 +138,18 @@ fun ViewConfirmado(
             }
 
             Spacer(Modifier.height(24.dp))
-            Boton("Consultar estado de mi pedido", onClick = onConsultar, estilo = "acento")
+            Boton("Consultar estado de mi pedido", onClick = onConsultar, estilo = EstiloBoton.Acento)
             Spacer(Modifier.height(10.dp))
             // RECURSO NATIVO: abre la hoja de compartir del sistema
             // (WhatsApp, correo, notas…). No requiere permisos.
             Boton(
                 "Compartir mi pedido",
                 onClick = { compartirTexto(context, resumen) },
-                estilo = "fantasma",
+                estilo = EstiloBoton.Fantasma,
+                icono = Icons.Filled.Share,
             )
             Spacer(Modifier.height(10.dp))
-            Boton("Hacer otro pedido", onClick = onOtroPedido, estilo = "fantasma")
+            Boton("Hacer otro pedido", onClick = onOtroPedido, estilo = EstiloBoton.Fantasma)
         }
     }
 }

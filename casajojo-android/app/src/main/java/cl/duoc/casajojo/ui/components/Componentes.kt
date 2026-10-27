@@ -22,8 +22,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
@@ -82,27 +86,38 @@ fun PasoBar(paso: Int) {
     }
 }
 
+/**
+ * CAMBIO (P3): los estilos eran textos ("radio", "acento"…); un error de tipeo
+ * compilaba y caía en el estilo por defecto sin aviso. Con enums el compilador
+ * solo acepta los valores que existen.
+ */
+enum class EstiloMarcador { Radio, Check }
+
+/** Estilos de Boton: Acento (naranjo), Oscuro y Fantasma (solo borde). */
+enum class EstiloBoton { Acento, Oscuro, Fantasma }
+
 /** Círculo (radio) o cuadrado (check) que indica si una opción está marcada. */
 @Composable
 fun Marcador(
-    estilo: String,
+    estilo: EstiloMarcador,
     marcado: Boolean,
 ) {
     val primario = MaterialTheme.colorScheme.primary
     val contorno = MaterialTheme.colorScheme.outline
+    val forma = if (estilo == EstiloMarcador.Radio) CircleShape else RoundedCornerShape(6.dp)
     Box(
         modifier = Modifier
             .size(22.dp)
-            .clip(if (estilo == "radio") CircleShape else RoundedCornerShape(6.dp))
-            .border(2.dp, if (marcado) primario else contorno, if (estilo == "radio") CircleShape else RoundedCornerShape(6.dp))
+            .clip(forma)
+            .border(2.dp, if (marcado) primario else contorno, forma)
             .background(if (marcado) primario else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
         when {
-            estilo == "radio" && marcado -> Box(
+            estilo == EstiloMarcador.Radio && marcado -> Box(
                 Modifier.size(8.dp).clip(CircleShape).background(Color.White)
             )
-            estilo == "check" && marcado -> Text("✓", color = Color.White, fontSize = 14.sp, lineHeight = 14.sp)
+            estilo == EstiloMarcador.Check && marcado -> Text("✓", color = Color.White, fontSize = 14.sp, lineHeight = 14.sp)
         }
     }
 }
@@ -117,7 +132,7 @@ fun OptionCard(
     texto: String,
     marcado: Boolean,
     onClick: () -> Unit,
-    estilo: String = "radio",
+    estilo: EstiloMarcador = EstiloMarcador.Radio,
     detalle: String? = null,
     precio: String? = null,
     deshabilitado: Boolean = false,
@@ -178,33 +193,35 @@ fun Pill(
 }
 
 /**
- * Botón de ancho completo. Estilos: "acento" (naranjo), "oscuro" y "fantasma" (solo borde).
+ * Botón de ancho completo (ver EstiloBoton).
  * Con enabled = false el botón no responde y se ve atenuado.
+ * icono (opcional) se dibuja a la izquierda del texto.
  */
 @Composable
 fun Boton(
     texto: String,
     onClick: () -> Unit,
-    estilo: String = "acento",
+    estilo: EstiloBoton = EstiloBoton.Acento,
     enabled: Boolean = true,
+    icono: ImageVector? = null,
 ) {
     val colorFondo: Color
     val colorTexto: Color
     when (estilo) {
-        "acento" -> {
+        EstiloBoton.Acento -> {
             colorFondo = MaterialTheme.colorScheme.primary
             colorTexto = MaterialTheme.colorScheme.onPrimary
         }
-        "oscuro" -> {
+        EstiloBoton.Oscuro -> {
             colorFondo = MaterialTheme.colorScheme.onBackground
             colorTexto = MaterialTheme.colorScheme.background
         }
-        else -> {
+        EstiloBoton.Fantasma -> {
             colorFondo = Color.Transparent
             colorTexto = MaterialTheme.colorScheme.onBackground
         }
     }
-    val borde = if (estilo == "fantasma") {
+    val borde = if (estilo == EstiloBoton.Fantasma) {
         androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
     } else null
     Surface(
@@ -220,7 +237,13 @@ fun Boton(
             contentAlignment = Alignment.Center,
             modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth(),
         ) {
-            Text(texto, color = colorTexto, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icono != null) {
+                    Icon(icono, contentDescription = null, tint = colorTexto, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(texto, color = colorTexto, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            }
         }
     }
 }

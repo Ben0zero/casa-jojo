@@ -31,7 +31,8 @@ El APK se genera en `app/build/outputs/apk/debug/app-debug.apk`.
 ### Cuenta y sesión
 
 - Registro de usuario con validación de nombre, correo, teléfono y contraseña.
-- Inicio y cierre de sesión.
+- Validación visual por campo: ícono del tipo de dato, mensaje de error bajo el campo y ícono de estado (⚠ error / ✓ correcto). Después del primer envío, cada campo se revalida mientras se escribe.
+- Inicio de sesión, y cierre de sesión desde “Mi perfil”.
 - Sesión persistente mediante DataStore.
 - Contraseñas protegidas con PBKDF2-HMAC-SHA256 y salt individual.
 
@@ -41,15 +42,15 @@ El APK se genera en `app/build/outputs/apk/debug/app-debug.apk`.
 2. Selección de uno o más acompañamientos.
 3. Opción de pedir solo proteína.
 4. Carrito con edición de platos y total.
-5. Selección de hora y forma de pago.
+5. Selección de hora y forma de pago (el nombre para el retiro se valida bajo el campo).
 6. Confirmación con número de pedido.
 7. Consulta del estado del último pedido del usuario.
 
 ### Recursos nativos
 
-- **Cámara:** tomar y cambiar la foto de perfil desde la pantalla “Mi perfil”.
+- **Cámara:** tomar y cambiar la foto de perfil desde la pantalla “Mi perfil”, en resolución completa (`TakePicture` + `FileProvider`), reducida y enderezada según su EXIF.
 - **Persistencia de foto:** la imagen se guarda en el almacenamiento interno privado y se recupera al reabrir la aplicación.
-- **Lector QR:** escaneo de códigos QR desde la sección de transferencia.
+- **Lector QR:** escaneo de códigos QR desde la sección de transferencia; el código leído se conserva mientras se arma el pedido.
 - **Notificaciones locales:** aviso del sistema cuando el pedido queda registrado.
 - **Compartir pedido:** envío del resumen mediante el selector de compartir de Android.
 
@@ -103,7 +104,7 @@ La aplicación funciona con la **Opción A — local**, por lo que los pedidos n
 
 ## Pruebas
 
-Las reglas de pedido, validaciones de autenticación y cifrado de contraseñas cuentan con tests unitarios:
+Las reglas de pedido, validaciones de autenticación, cifrado de contraseñas y el `AuthViewModel` (con un repositorio falso en memoria, sin emulador) cuentan con tests unitarios:
 
 ```bash
 gradlew.bat testDebugUnitTest
