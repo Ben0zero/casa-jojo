@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duoc.casajojo.data.local.CasaJojoDatabase
+import cl.duoc.casajojo.data.local.RoomTransactionRunner
 import cl.duoc.casajojo.utils.Notificaciones
 import cl.duoc.casajojo.data.local.SesionPreferences
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
@@ -37,14 +38,19 @@ import kotlinx.coroutines.launch
  * 2) Estado del formulario en memoria con mutableStateOf (carrito, nombre,
  *    hora, etc.). Compose redibuja automáticamente cuando cambian.
  */
-class ClienteViewModel(app: Application) : AndroidViewModel(app) {
-
-    private val db = CasaJojoDatabase.get(app)
-    private val repo = PedidoRepository(db)
+class ClienteViewModel @JvmOverloads constructor(
+    app: Application,
+    private val db: CasaJojoDatabase = CasaJojoDatabase.get(app),
+    private val repo: PedidoRepository = PedidoRepository(
+        productos = db.productoDao(),
+        pedidos = db.pedidoDao(),
+        transacciones = RoomTransactionRunner(db),
+    ),
+) : AndroidViewModel(app) {
 
     // NUEVO (fase 1): sesión guardada en DataStore y datos del usuario logueado.
     private val sesion = SesionPreferences(app)
-    private val authRepo = AuthRepository(db, sesion)
+    private val authRepo = AuthRepository(db.usuarioDao(), sesion)
 
     /** Usuario con sesión activa; se usa para saludar y prellenar el nombre del retiro. */
     val usuario: StateFlow<Usuario?> = authRepo.usuarioActual.stateIn(
@@ -114,6 +120,22 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         resetear()
+        // EA3: al abrir la app se actualiza el menú y el estado del último
+        // pedido desde los microservicios. Si no hay red, Room mantiene la
+        // última copia y la pantalla sigue funcionando.
+        viewModelScope.launch {
+            repo.sincronizarMenu()
+            val correo = sesion.ultimoCorreo()
+            if (correo.isNotBlank()) repo.sincronizarEstado(correo)
+        }
+    }
+
+    /** Llamado desde "Mi pedido" para refrescar el estado remoto. */
+    fun sincronizarUltimoPedido() {
+        viewModelScope.launch {
+            val correo = sesion.ultimoCorreo()
+            if (correo.isNotBlank()) repo.sincronizarEstado(correo)
+        }
     }
 
     fun limpiarError() {
@@ -217,6 +239,8 @@ class ClienteViewModel(app: Application) : AndroidViewModel(app) {
                     formaPago = formaPago,
                     indicaciones = indicaciones.trim(),
                     platos = cart.toList(),
+                    correo = sesion.ultimoCorreo(),
+                    origen = "Mostrador",
                 )
                 ultimoNumero = numero
 

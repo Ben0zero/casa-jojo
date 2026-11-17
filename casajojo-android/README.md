@@ -11,6 +11,7 @@ Proyecto desarrollado para Duoc UC según el ERS _La Casa JoJo v1.1_.
 - Android Studio compatible con AGP 9.3.0.
 - Android 8.0 (API 26) o superior.
 - Emulador o dispositivo Android. Para probar cámara y QR se recomienda un dispositivo físico o un emulador con Google Play.
+- Opcional: microservicios Java de Casa JoJo levantados (auth `8081`, catálogo `8082`, ventas `8086`). Si no están disponibles, la app sigue funcionando con la caché local.
 
 ## Ejecutar el proyecto
 
@@ -25,6 +26,39 @@ gradlew.bat assembleDebug
 ```
 
 El APK se genera en `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Conexión con los microservicios
+
+La dirección de la PC que corre los microservicios se define en `app/build.gradle.kts`:
+
+```kotlin
+buildConfigField("String", "API_HOST", "\"10.0.2.2\"")
+```
+
+- `10.0.2.2` es el valor por defecto y apunta al host desde el **emulador**.
+- Para un **dispositivo físico**, reemplázalo por la IP de la PC en la misma red Wi‑Fi (por ejemplo `192.168.1.20`).
+
+Los contratos Retrofit están en `data/remote/ApiService.kt` y apuntan a los endpoints adaptados a Casa JoJo:
+
+| Microservicio | Puerto | Endpoints usados por la app |
+|---|---|---|
+| Auth | 8081 | `POST /api/auth/login`, `POST /api/auth/register` |
+| Catálogo | 8082 | `GET /api/menu` |
+| Ventas | 8086 | `POST /api/pedidos`, `GET /api/pedidos/ultimo?correo=` |
+
+El login envía `correo` como usuario y guarda el JWT en DataStore. La API manda el menú y los estados; Room conserva la última copia para funcionar sin red.
+
+### APK firmado
+
+`app/build.gradle.kts` define `signingConfigs["release"]` usando `app/keystore/casajojo-release.jks` (alias `casajojo`). Para generarlo:
+
+```bash
+gradlew.bat assembleRelease
+```
+
+El APK queda en `app/build/outputs/apk/release/app-release.apk`. Las contraseñas se leen de `local.properties` o variables de entorno (`CASAJOJO_KEYSTORE_PASSWORD`, `CASAJOJO_KEY_PASSWORD`); los valores por defecto permiten compilar la entrega en un clone limpio.
+
+> El keystore incluido es **de demostración para la asignatura**. En un proyecto real debe generarse uno propio y no subirse al repositorio.
 
 ## Funcionalidades
 
@@ -75,8 +109,10 @@ cl.duoc.casajojo/
 │   │   ├── CasaJojoDatabase.kt
 │   │   ├── MenuSeed.kt
 │   │   ├── PerfilPhotoStorage.kt
-│   │   └── SesionPreferences.kt
-│   └── repository/          AuthRepository y PedidoRepository
+│   │   ├── SesionPreferences.kt
+│   │   └── TransactionRunner.kt
+│   ├── remote/              Retrofit, DTOs y contratos de los microservicios
+│   └── repository/          AuthRepository y PedidoRepository (API + caché)
 ├── domain/
 │   ├── model/               Modelos puros del dominio
 │   └── usecase/             Reglas y validaciones de negocio
@@ -96,14 +132,18 @@ cl.duoc.casajojo/
 |---|---|
 | Usuarios y contraseñas cifradas | Room, tabla `usuarios` |
 | Menú, pedidos y platos | Room |
-| Usuario con sesión activa | DataStore Preferences |
+| Usuario con sesión activa y token JWT | DataStore Preferences |
 | Foto de perfil | Archivo privado `filesDir/foto_perfil.jpg` |
 
-La aplicación funciona con la **Opción A — local**, por lo que los pedidos no se sincronizan todavía con el panel web.
+Room y DataStore son la **caché**: los repositorios consultan primero la API y, si no hay red, conservan la última copia local. Los pedidos Confirmados se envían a `ms-ventas` y el estado se refresca al abrir “Mi pedido”.
 
 ## Pruebas
 
-Las reglas de pedido, validaciones de autenticación y cifrado de contraseñas cuentan con tests unitarios:
+Además de las reglas de pedido, validaciones y cifrado, hay pruebas de repositorios y ViewModel con MockK, Kotest y coroutines-test:
+
+- `AuthRepositoryTest`: login/registro remotos, token y fallback local.
+- `PedidoRepositoryTest`: sincronización de menú, envío de pedidos y estados.
+- `AuthViewModelTest`: validación de formularios y navegación.
 
 ```bash
 gradlew.bat testDebugUnitTest
@@ -111,8 +151,7 @@ gradlew.bat testDebugUnitTest
 
 ## Limitaciones conocidas
 
-- Las cuentas y pedidos se almacenan únicamente en el dispositivo.
+- Sin los microservicios levantados, la app funciona en modo local (caché).
 - No existe recuperación de contraseña.
 - El número de pedido es secuencial por dispositivo.
-- El estado del pedido se consulta manualmente.
-- El estado y pago son administrados desde el panel web.
+- El cambio de estado y el pago se administran desde los servicios/ERD; la app solo los consulta.

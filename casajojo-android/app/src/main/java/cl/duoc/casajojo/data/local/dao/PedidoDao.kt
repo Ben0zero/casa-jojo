@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import cl.duoc.casajojo.data.local.entity.Pedido
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.data.local.entity.Plato
@@ -19,6 +20,13 @@ interface PedidoDao {
 
     @Query("SELECT MAX(numero) FROM pedidos")
     suspend fun maxNumero(): Int?
+
+    /** EA3: actualiza el estado del pedido cuando llega una respuesta de la API. */
+    @Update
+    suspend fun actualizar(pedido: Pedido)
+
+    @Query("SELECT * FROM pedidos WHERE numero = :numero ORDER BY id DESC LIMIT 1")
+    suspend fun porNumero(numero: Int): Pedido?
 
     /**
      * CAMBIO (login): antes devolvía el último pedido de CUALQUIERA.

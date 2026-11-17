@@ -28,9 +28,12 @@ import kotlinx.coroutines.launch
  * y se expone como StateFlow de solo lectura. La pantalla lo observa con
  * collectAsState() y se redibuja cuando la ficha cambia.
  */
-class AuthViewModel(app: Application) : AndroidViewModel(app) {
-
-    private val repo = AuthRepository(CasaJojoDatabase.get(app), SesionPreferences(app))
+class AuthViewModel @JvmOverloads constructor(
+    app: Application,
+    private val repo: AuthRepository = AuthRepository(
+        CasaJojoDatabase.get(app).usuarioDao(), SesionPreferences(app)
+    ),
+) : AndroidViewModel(app) {
 
     /**
      * Estado de la sesión. Eagerly: empieza a leer DataStore apenas se crea el

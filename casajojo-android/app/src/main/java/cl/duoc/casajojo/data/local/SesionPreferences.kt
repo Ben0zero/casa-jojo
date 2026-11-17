@@ -37,6 +37,9 @@ class SesionPreferences(private val context: Context) {
 
     private val claveUsuarioId = longPreferencesKey("usuario_id")
     private val claveUltimoCorreo = stringPreferencesKey("ultimo_correo")
+    // EA3: token JWT devuelto por ms-auth; se conserva para futuras llamadas
+    // autenticadas. Nunca se guarda la contraseña.
+    private val claveToken = stringPreferencesKey("auth_token")
 
     /**
      * "data" es un Flow que entrega el contenido del archivo cada vez que cambia.
@@ -52,11 +55,22 @@ class SesionPreferences(private val context: Context) {
     /** Lee una sola vez el último correo usado (first() espera la primera entrega). */
     suspend fun ultimoCorreo(): String = datos.first()[claveUltimoCorreo] ?: ""
 
+    /** Token JWT de la sesión actual (o vacío si el login fue local). */
+    suspend fun token(): String = datos.first()[claveToken] ?: ""
+
+    /** Guarda el token entregado por el microservicio de autenticación. */
+    suspend fun guardarToken(token: String) {
+        context.sesionDataStore.edit { prefs ->
+            if (token.isBlank()) prefs.remove(claveToken) else prefs[claveToken] = token
+        }
+    }
+
     /** edit es una función suspendida: escribe en segundo plano y deja el archivo consistente. */
-    suspend fun iniciar(usuarioId: Long, correo: String) {
+    suspend fun iniciar(usuarioId: Long, correo: String, token: String? = null) {
         context.sesionDataStore.edit { prefs ->
             prefs[claveUsuarioId] = usuarioId
             prefs[claveUltimoCorreo] = correo
+            if (token != null) prefs[claveToken] = token
         }
     }
 
