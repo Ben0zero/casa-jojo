@@ -2,48 +2,63 @@
 
 Sistema de autoservicio de menú para **La Casa JoJo SpA** (proyecto Duoc UC, ERS v1.1).
 
-Repositorio con los dos componentes del MVP, cada uno en su **carpeta** y en su **rama**:
+La rama `main` contiene la app Android y el backend Java que la consume:
 
-| Componente | Carpeta | Rama | Stack |
+| Componente | Carpeta | Stack | Estado |
 | --- | --- | --- | --- |
-| App del cliente (Android) | `casajojo-android` | `android` | Kotlin + Jetpack Compose + Room |
-| Panel de administración (web) | `casajojo-web` | `web` | React + Vite + TypeScript (localStorage) |
+| App del cliente | `casajojo-android` | Kotlin + Jetpack Compose + Room/DataStore + Retrofit | Integrada con la API |
+| Microservicios | `microservicios mobil` | Java 21 + Spring Boot + Oracle | Módulos auth, catálogo y ventas adaptados a Casa JoJo |
+| Panel web del ERS | `casajojo-web` | React + Vite + TypeScript | Se conserva, pero no se modificó ni participa en esta integración |
 
-La rama `main` contiene ambos componentes junto con esta documentación.
+## Arquitectura
 
-## Decisiones (según ERS v1.1)
+- La app usa **API primero**: Retrofit consume los microservicios y guarda en Room/DataStore la sesión, el menú y el último pedido como caché. Si la API no responde, puede seguir operando con esos datos locales.
+- **Auth** (`8081`): login/registro por correo y token JWT.
+- **Catálogo** (`8082`): menú público `/api/menu` con SKU `CJ-*`, tipo de plato, precio y disponibilidad.
+- **Ventas** (`8086`): pedidos con `horaRetiro`, `origen`, items, total, estado y estado de pago.
+- Los módulos `eureka`, `produccion`, `inventario` y `main` se mantienen por compatibilidad con el proyecto original; la app Android **no los consume**.
+- El panel web sigue siendo una pieza separada del ERS; esta entrega no sincroniza su `localStorage` con la app.
 
-- **Opción A — local**: sin backend. La app persiste en Room y el panel web en `localStorage` del navegador; aún **no se sincronizan** entre sí.
-- La app móvil cubre el flujo del **cliente** (RF-03, RF-05, RF-06, RF-19, RF-21).
-- El panel web cubre **Atención y Cocina**: comandas (RF-09, RF-11, RF-13, RF-17, RF-18), vista de cocina por hora de retiro (RF-10, RF-20), administración de menú y stock (RF-02, RF-07), estado de pago como anotación (RF-08) y resumen/historial del día (RF-14, RF-15).
-- **Diferido**: login (RNF-04) y el descuento del 2% (RF-16, fuera de alcance). La doble proteína (RF-04) se omitió por criterio de aceptación C-01.
+El detalle de endpoints, puertos, ejecución y pruebas está en [`microservicios mobil/README.md`](microservicios%20mobil/README.md).
 
-## Móvil (rama `android`)
+## Backend
+
+Requisito: Java 21. Cada módulo trae su wrapper Maven.
+
+```powershell
+cd "microservicios mobil"
+cd MiniMarket-Proyecto-ms-auth
+.\mvnw.cmd spring-boot:run
+
+# En otras terminales:
+cd MiniMarket-Proyecto-ms-catalogoProductos
+.\mvnw.cmd spring-boot:run
+
+cd MiniMarket-Proyecto-ms-ventas
+.\mvnw.cmd spring-boot:run
+```
+
+Los `application.properties` no guardan contraseñas: toman `TNS_ADMIN` y `ORACLE_PASSWORD` del entorno (con `ORACLE_USERNAME`/`ORACLE_SERVICE` opcionales). **Los wallets no están en el repositorio** por ser credenciales; hay que configurarlos localmente antes de iniciar los servicios o ejecutar el test de carga de contexto. Las pruebas unitarias de la lógica adaptada no dependen de esa conexión.
+
+## Móvil
 
 Requisitos: Android 8.0 (API 26) o superior.
 
-```
-Casos básicos:
+```powershell
 cd casajojo-android
-gradlew.bat assembleDebug      # APK en app\build\outputs\apk\debug\
-gradlew.bat testDebugUnitTest  # tests de reglas de pedido
+.\gradlew.bat assembleRelease      # APK firmado en app\build\outputs\apk\release\
+.\gradlew.bat testDebugUnitTest    # 45 tests unitarios
 ```
 
-Flujo: portada → proteína (o "solo proteína" $3.000) → acompañamientos → carrito → retiro y pago (anotación) → confirmación con número de pedido → consulta de estado en "Mi pedido".
+Por defecto la app apunta a `http://10.0.2.2:<puerto>/` (emulador). El host se define con `API_HOST` en `casajojo-android/app/build.gradle.kts`; para un dispositivo físico se reemplaza por la IP de la PC en la misma red.
 
-## Web admin (rama `web`)
+El release usa `app/keystore/casajojo-release.jks` (keystore de demostración incluido para que un clone limpio pueda compilar). Los passwords pueden sobreescribirse desde `local.properties` o variables de entorno. El APK generado está firmado con el esquema v2 y verificado con `apksigner`.
 
-```
-cd casajojo-web
-npm install
-npm run dev        # desarrollo (http://localhost:5173)
-npm run test       # tests (vitest)
-npm run build      # build de producción (dist/)
-```
+Flujo: portada → proteína → acompañamientos → carrito → retiro y pago → confirmación con número de pedido → consulta de estado en “Mi pedido”.
 
-Secciones: **Comandas** (registrar pedido de WhatsApp/llamada/presencial, cambiar estados, marcar pago), **Cocina** (comandas por hora de retiro con alerta de ≤15 min), **Menú** (agregar/editar/agotar opciones) y **Resumen** (ventas, pagos e historial).
+## Decisiones y alcance
 
-## Limitaciones
-
-- Los pedidos no viajan entre la app y el panel (futuro backend).
-- Número de pedido secuencial por dispositivo; sin notificaciones push.
+- Login (RNF-04) queda cubierto por el microservicio de auth.
+- Se mantienen Room/DataStore como caché, no como única fuente de datos.
+- El descuento del 2% (RF-16) sigue fuera de alcance; la doble proteína (RF-04) se omitió por el criterio de aceptación C-01.
+- No se verificó una corrida end-to-end contra Oracle con credenciales reales: el entorno local devolvió `ORA-01017` en el test de contexto de auth. La lógica adaptada sí pasa sus pruebas unitarias dirigidas.

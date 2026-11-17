@@ -7,6 +7,10 @@
 *.iml
 *.log
 
+# Java / Maven
+**/target/
+**/OracleWallet/
+
 # Node / Vite
 **/node_modules/
 **/dist/
