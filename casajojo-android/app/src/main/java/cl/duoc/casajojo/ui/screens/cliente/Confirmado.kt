@@ -1,6 +1,7 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.Confeti
 import cl.duoc.casajojo.ui.components.Pill
 import cl.duoc.casajojo.utils.compartirTexto
 import cl.duoc.casajojo.utils.colorEstadoPago
@@ -34,12 +36,12 @@ import cl.duoc.casajojo.utils.money
 import cl.duoc.casajojo.utils.textoEstadoPago
 import cl.duoc.casajojo.utils.textoEstadoPedido
 import cl.duoc.casajojo.ui.layouts.Pantalla
+import cl.duoc.casajojo.ui.theme.Ac
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 
 /**
- * PASO 5 — Confirmación.
- * Se llega aquí después de que el ViewModel guardó el pedido en Room.
- * Muestra el número asignado y un resumen leído desde la base de datos.
+ * PASO 5 — Confirmación. Mismo resumen y mismas acciones de siempre,
+ * con una "tarjeta de felicidades" y confeti para darle vida.
  */
 @Composable
 fun ViewConfirmado(
@@ -47,14 +49,11 @@ fun ViewConfirmado(
     onConsultar: () -> Unit,
     onOtroPedido: () -> Unit,
 ) {
-    // CORRECCIÓN: igual que en Home, nos suscribimos al Flow con collectAsState()
-    // para que Room entregue el pedido recién guardado. Antes se mostraba "…".
     val ultimoPedido by vm.ultimoPedido.collectAsState()
     val pedido = ultimoPedido?.pedido
     val platos = ultimoPedido?.platos.orEmpty()
 
     val context = LocalContext.current
-    // RECURSO NATIVO: texto que se envía al "share sheet" del sistema.
     val resumen = buildString {
         append("Pedido #${vm.ultimoNumero ?: pedido?.numero ?: "…"} en La Casa JoJo")
         pedido?.let { p ->
@@ -67,42 +66,66 @@ fun ViewConfirmado(
     Pantalla {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shadowElevation = 4.dp,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("✓", color = Color.White, fontSize = 40.sp, lineHeight = 40.sp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 26.dp),
+                ) {
+                    Confeti()
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background(Ac),
+                    ) {
+                        Text("✓", color = Color.White, fontSize = 42.sp, lineHeight = 42.sp)
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        "¡Pedido confirmado!",
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Tu número de pedido es",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp,
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White,
+                        shadowElevation = 3.dp,
+                        modifier = Modifier.padding(top = 10.dp),
+                    ) {
+                        Text(
+                            "#${vm.ultimoNumero ?: "…"}",
+                            fontSize = 42.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Ac,
+                            modifier = Modifier.padding(horizontal = 26.dp, vertical = 6.dp),
+                        )
+                    }
+                }
             }
-            Spacer(Modifier.height(18.dp))
-            Text("Pedido confirmado", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Tu número de pedido es",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 15.sp,
-            )
-            // ultimoNumero lo deja el ViewModel apenas termina de guardar, así que
-            // el número aparece de inmediato aunque Room aún no haya emitido.
-            Text(
-                "#${vm.ultimoNumero ?: "…"}",
-                fontSize = 44.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 4.dp),
-            )
 
+            Spacer(Modifier.height(20.dp))
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                shape = RoundedCornerShape(20.dp),
+                shadowElevation = 3.dp,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(Modifier.padding(16.dp)) {
+                Column(Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Pill(
                             pedido?.estadoPedido?.let { textoEstadoPedido(it) } ?: "…",
@@ -113,16 +136,14 @@ fun ViewConfirmado(
                             pedido?.estadoPago?.let { colorEstadoPago(it) } ?: Color(0xFF6D6D67),
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Retiro a las ${pedido?.horaRetiro ?: "…"} h",
-                        fontSize = 16.sp,
-                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("Retiro a las ${pedido?.horaRetiro ?: "…"} h", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     if (platos.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "${platos.size} ${if (platos.size == 1) "plato" else "platos"} · ${pedido?.total?.money() ?: "…"}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
                         )
                     }
                 }
@@ -131,8 +152,6 @@ fun ViewConfirmado(
             Spacer(Modifier.height(24.dp))
             Boton("Consultar estado de mi pedido", onClick = onConsultar, estilo = "acento")
             Spacer(Modifier.height(10.dp))
-            // RECURSO NATIVO: abre la hoja de compartir del sistema
-            // (WhatsApp, correo, notas…). No requiere permisos.
             Boton(
                 "Compartir mi pedido",
                 onClick = { compartirTexto(context, resumen) },

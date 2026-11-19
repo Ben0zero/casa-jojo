@@ -6,10 +6,17 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,10 +28,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.ui.theme.Ac
+import cl.duoc.casajojo.ui.theme.Gold
 
 /**
- * Barra superior con el logo y un acceso rápido al carrito (si tiene platos).
- * Es estructura de pantalla, por eso vive en ui/layouts y no en ui/components.
+ * Barra superior con el sello "CJ" y un acceso rápido al carrito.
+ * Mantiene la misma firma para no tocar ninguna pantalla.
  */
 @Composable
 fun BarraSuperior(
@@ -37,12 +46,39 @@ fun BarraSuperior(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("La Casa ", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("JoJo", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+            Surface(
+                shape = RoundedCornerShape(13.dp),
+                color = Ac,
+                shadowElevation = 4.dp,
+            ) {
+                Box(
+                    Modifier.size(42.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "CJ",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp,
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(start = 10.dp)) {
+                Text(
+                    "LA CASA",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "JOJO",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
         }
         if (cartCount > 0) {
-            // ANIMACIÓN: el acceso al carrito aparece/desaparece con un
-            // despliegue horizontal en vez de saltar de golpe.
             AnimatedVisibility(
                 visible = cartCount > 0,
                 enter = fadeIn(tween(200)) + expandHorizontally(tween(250)),
@@ -51,17 +87,36 @@ fun BarraSuperior(
                 Surface(
                     onClick = onCartClick,
                     shape = RoundedCornerShape(99.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 3.dp,
                     border = androidx.compose.foundation.BorderStroke(
-                        1.5.dp, MaterialTheme.colorScheme.outline
+                        1.dp, MaterialTheme.colorScheme.outline,
                     ),
-                    color = Color.Transparent,
                 ) {
-                    Text(
-                        "Mi pedido ($cartCount)",
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Mi pedido",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .background(Gold, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "$cartCount",
+                                color = Color(0xFF3D2A00),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
                 }
             }
         }

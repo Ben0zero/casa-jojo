@@ -4,16 +4,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -23,18 +25,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.Badge
+import cl.duoc.casajojo.ui.components.BarraNavegacion
+import cl.duoc.casajojo.ui.components.BarraPedido
+import cl.duoc.casajojo.ui.components.FotoPlaceholder
 import cl.duoc.casajojo.ui.components.Nota
-import cl.duoc.casajojo.ui.components.Regla
 import cl.duoc.casajojo.ui.layouts.Pantalla
+import cl.duoc.casajojo.ui.theme.Ac
+import cl.duoc.casajojo.ui.theme.Gold
+import cl.duoc.casajojo.ui.theme.Ink
+import cl.duoc.casajojo.ui.theme.Mut
+import cl.duoc.casajojo.ui.theme.VerdeOscuro
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 
 /**
  * PASO 0 — Portada.
- * Desde aquí el cliente empieza un pedido nuevo o revisa el último que hizo.
+ * Mismo flujo de siempre (comenzar / ver pedido / perfil / cerrar sesión),
+ * con una portada tipo app de comida rápida y espacio reservado para foto.
  */
 @Composable
 fun ViewHome(
@@ -44,75 +56,262 @@ fun ViewHome(
     onPerfil: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
-    // NUEVO (fase 1): datos del usuario logueado para el saludo.
     val usuario by vm.usuario.collectAsState()
-
-    // CORRECCIÓN: antes se leía vm.ultimoPedido.value directamente.
-    // El StateFlow del ViewModel usa SharingStarted.WhileSubscribed, es decir,
-    // solo consulta Room mientras alguien lo está "escuchando". Leer .value no
-    // cuenta como escuchar, así que el valor quedaba siempre en null y el botón
-    // "Ver mi pedido" nunca aparecía.
-    // collectAsState() se suscribe al Flow y además hace que la pantalla se
-    // vuelva a dibujar (recomponga) cada vez que llega un valor nuevo.
     val ultimoPedido by vm.ultimoPedido.collectAsState()
+    val proteinas by vm.proteinas.collectAsState()
 
-    Pantalla {
+    // Los 6 platos reales (Room/API). Si aún no cargó, usamos el seed local.
+    val antojos = proteinas.take(6).map { it.nombre to it.disponible }.ifEmpty {
+        listOf(
+            "Pollo asado" to true,
+            "Carne al jugo" to true,
+            "Guatitas" to true,
+            "Cerdo mongoliano" to false,
+            "Filete de pollo" to true,
+            "Tortilla de porotos verdes" to true,
+        )
+    }
+
+    Pantalla(
+        bar = {
+            Column {
+                BarraPedido(
+                    texto = "Comenzar mi pedido",
+                    detalle = "Elige proteína y acompañamientos",
+                    onClick = onComenzar,
+                )
+                Spacer(Modifier.height(8.dp))
+                BarraNavegacion(
+                    onInicio = {},
+                    onMenu = onComenzar,
+                    onPedido = onMiPedido,
+                    onPerfil = onPerfil,
+                )
+            }
+        },
+    ) {
         Column {
-            // NUEVO (fase 1): saludo con el primer nombre y acceso a cerrar sesión.
-            // (En la fase 2 "Cerrar sesión" pasa a la pantalla Perfil.)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "Hola, ${usuario?.nombre?.substringBefore(' ') ?: ""}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "¡Hola, ${usuario?.nombre?.substringBefore(' ') ?: "cliente"}!",
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                    Text(
+                        "¿Qué se te antoja hoy?",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Surface(
+                    onClick = onPerfil,
+                    shape = CircleShape,
+                    color = Ac,
+                    shadowElevation = 4.dp,
+                ) {
+                    Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
+                        Text("CJ", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                    }
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Ink,
+                shadowElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Box {
+                    // Círculo dorado decorativo: guiño visual de la maqueta,
+                    // dibujado con Compose, sin assets de otras marcas.
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 28.dp, y = (-28).dp)
+                            .size(150.dp)
+                            .clip(CircleShape)
+                            .background(Gold),
+                    )
+                    Column {
+                        Box(Modifier.padding(9.dp)) {
+                            FotoPlaceholder(alto = 150.dp, etiqueta = "Foto de tu plato", redondeo = 18.dp)
+                            Box(
+                                Modifier.fillMaxSize().padding(16.dp),
+                                contentAlignment = Alignment.TopStart,
+                            ) {
+                                Badge("🔥 Listo en 10 min", color = Ac)
+                            }
+                            Box(
+                                Modifier.fillMaxSize().padding(16.dp),
+                                contentAlignment = Alignment.BottomStart,
+                            ) {
+                                Badge("Retiro express", color = Gold, colorTexto = Ink)
+                            }
+                        }
+                        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+                            Badge("Solo hoy", color = Gold, colorTexto = Ink)
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "Tu almuerzo,\nsin esperar.",
+                                color = Color.White,
+                                fontSize = 27.sp,
+                                fontWeight = FontWeight.Black,
+                                lineHeight = 31.sp,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Elige tu proteína, suma tus acompañamientos y retira a la hora que quieras.",
+                                color = Color(0xFFD8E8DC),
+                                fontSize = 14.sp,
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(22.dp))
+            Text("¿Qué te antoja?", fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Spacer(Modifier.height(10.dp))
+            Column(modifier = Modifier.fillMaxWidth()) {
+                antojos.chunked(3).forEachIndexed { fila, items ->
+                    if (fila > 0) Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        items.forEach { (nombre, disponible) ->
+                            CategoriaChip(iconoPara(nombre), nombre, disponible)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(22.dp))
+            Text("Hoy en Casa JoJo", fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                Surface(
                     modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "Mi perfil",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onPerfil)
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                )
-                Text(
-                    "Cerrar sesión",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onCerrarSesion)
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                )
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shadowElevation = 2.dp,
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("2x1", fontSize = 24.sp, fontWeight = FontWeight.Black, color = VerdeOscuro)
+                        Text(
+                            "en acompañamientos",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4A3600),
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shadowElevation = 2.dp,
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("Sin fila", fontSize = 19.sp, fontWeight = FontWeight.Black, color = VerdeOscuro)
+                        Text(
+                            "retira a tu hora",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Ac,
+                        )
+                    }
+                }
             }
-            Text("Arma tu menú", fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            Regla()
-            Text(
-                "Elige tu proteína y tus acompañamientos. Lo dejamos listo en la puerta a la hora que indiques.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 17.sp,
-            )
-            Nota(
-                "Pide antes de las 12 y retira sin esperar: tu almuerzo sale en menos de 10 minutos."
-            )
-            Spacer(Modifier.height(20.dp))
-            Boton("Comenzar mi pedido", onClick = onComenzar)
-            // Solo se ofrece "Ver mi pedido" si ya existe al menos un pedido guardado.
+
+            Spacer(Modifier.height(22.dp))
+            Text("Accesos rápidos", fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Spacer(Modifier.height(10.dp))
+            FilaAcceso(glifo = "👤", texto = "Mi perfil", onClick = onPerfil)
             if (ultimoPedido != null) {
-                Spacer(Modifier.height(10.dp))
-                Boton(
-                    "Ver mi pedido",
-                    onClick = onMiPedido,
-                    estilo = "fantasma",
-                )
+                FilaAcceso(glifo = "🧾", texto = "Ver mi pedido", onClick = onMiPedido)
             }
+            FilaAcceso(glifo = "↪️", texto = "Cerrar sesión", onClick = onCerrarSesion)
+
+            Nota("Pide antes de las 12 y retira sin esperar: tu almuerzo sale en menos de 10 minutos.")
+        }
+    }
+}
+
+@Composable
+private fun FilaAcceso(glifo: String, texto: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(glifo, fontSize = 16.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(texto, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text("→", color = Ac, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
+    }
+}
+
+/** Glifo según el plato real de Casa JoJo. */
+private fun iconoPara(nombre: String): String = when {
+    nombre.contains("pollo", ignoreCase = true) -> "🍗"
+    nombre.contains("carne", ignoreCase = true) -> "🥩"
+    nombre.contains("guatita", ignoreCase = true) -> "🍲"
+    nombre.contains("cerdo", ignoreCase = true) -> "🥓"
+    nombre.contains("poroto", ignoreCase = true) -> "🫘"
+    else -> "🍽️"
+}
+
+/** Chips circulares del menú real: decorativos, no crean rutas nuevas. */
+@Composable
+private fun CategoriaChip(
+    glifo: String,
+    texto: String,
+    disponible: Boolean = true,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(
+            shape = CircleShape,
+            color = if (disponible) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                Color(0xFFEFEFEA)
+            },
+            shadowElevation = 2.dp,
+        ) {
+            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                Text(glifo, fontSize = 24.sp)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            texto,
+            color = if (disponible) MaterialTheme.colorScheme.onSurfaceVariant else Mut,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        if (!disponible) {
+            Text("Agotado", color = Mut, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

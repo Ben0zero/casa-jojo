@@ -3,6 +3,7 @@ package cl.duoc.casajojo.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -12,44 +13,46 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.ui.theme.Ac
 
-/** Línea corta de color bajo un título, como separador visual. */
+/** Línea corta roja, como acento bajo los títulos. */
 @Composable
 fun Regla() {
     Box(
         modifier = Modifier
-            .padding(top = 12.dp, bottom = 18.dp)
-            .background(
-                MaterialTheme.colorScheme.primary,
-                RoundedCornerShape(2.dp),
-            )
-            .height(3.dp)
-            .fillMaxWidth(0.35f),
+            .padding(top = 10.dp, bottom = 16.dp)
+            .background(Ac, RoundedCornerShape(3.dp))
+            .height(4.dp)
+            .width(38.dp),
     )
 }
 
-/** Recuadro de información o advertencia, con una barra de color a la izquierda. */
+/** Recuadro amarillo de información, con un glifo y sombra suave. */
 @Composable
 fun Nota(texto: String) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(topStart = 0.dp, topEnd = 10.dp, bottomEnd = 10.dp, bottomStart = 0.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(16.dp),
+        shadowElevation = 2.dp,
         modifier = Modifier.padding(top = 20.dp),
     ) {
-        Row {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text("💡", fontSize = 17.sp)
+            Spacer(Modifier.width(10.dp))
             Text(
                 texto,
-                modifier = Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 14.dp),
-                fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
         }
     }

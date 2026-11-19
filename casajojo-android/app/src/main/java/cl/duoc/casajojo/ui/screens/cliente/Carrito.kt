@@ -3,12 +3,15 @@ package cl.duoc.casajojo.ui.screens.cliente
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,19 +24,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.FotoPlaceholder
+import cl.duoc.casajojo.ui.components.PanelTotal
 import cl.duoc.casajojo.ui.components.Titulo
-import cl.duoc.casajojo.ui.components.TotalAnimado
 import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.utils.money
 import cl.duoc.casajojo.ui.layouts.Pantalla
+import cl.duoc.casajojo.ui.theme.Ac
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 
 /**
- * PASO 3 — Carrito.
- * Lista los platos que el cliente ha armado (vm.cart). Desde aquí puede:
- * - quitar un plato,
- * - volver a Proteína para agregar otro plato,
- * - continuar a Retiro y pago (solo si hay al menos un plato).
+ * PASO 3 — Carrito. Misma lógica de siempre: quitar platos, agregar otro
+ * y continuar solo si hay al menos un plato. Ahora con look de ticket.
  */
 @Composable
 fun ViewCarrito(
@@ -45,34 +47,40 @@ fun ViewCarrito(
     Pantalla {
         Column {
             Volver(onVolver)
-            Titulo("Tu pedido")
+            Spacer(Modifier.height(16.dp))
+            Titulo("Tu pedido", "Revisa lo que llevas antes de continuar")
+            Spacer(Modifier.height(18.dp))
 
-            // CORRECCIÓN: si el carrito está vacío (por ejemplo, porque se quitaron
-            // todos los platos) mostramos un mensaje en vez de una lista en blanco.
             if (vm.cart.isEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Todavía no has agregado platos. Elige una proteína para empezar.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 16.sp,
-                )
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Todavía no has agregado platos. Elige una proteína para empezar.",
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(18.dp),
+                    )
+                }
             }
 
-            // forEachIndexed nos da la posición "i" de cada plato; la usamos para
-            // saber cuál quitar, porque dos platos podrían ser idénticos.
             vm.cart.forEachIndexed { i, plato ->
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    shadowElevation = 3.dp,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
+                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
+                        Box(Modifier.size(66.dp)) {
+                            FotoPlaceholder(alto = 66.dp, etiqueta = "", redondeo = 13.dp)
+                        }
+                        Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(plato.nombreProteina, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Text(plato.nombreProteina, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(
                                 if (plato.solo) {
                                     "Solo la proteína"
@@ -80,18 +88,15 @@ fun ViewCarrito(
                                     plato.acompanamientos.joinToString(" · ")
                                 },
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                             )
-                            // CORRECCIÓN: "Quitar" era solo texto y no hacía nada.
-                            // Ahora llama a vm.quitarPlato(i); como cart es un
-                            // mutableStateOf, la lista y el total se redibujan solos.
                             Text(
                                 "Quitar",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                color = Ac,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier
-                                    .padding(top = 6.dp)
+                                    .padding(top = 8.dp)
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable { vm.quitarPlato(i) }
                                     .padding(vertical = 4.dp, horizontal = 2.dp),
@@ -99,19 +104,16 @@ fun ViewCarrito(
                         }
                         Text(
                             plato.precio.money(),
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 12.dp),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(start = 8.dp),
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Total", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                // ANIMACIÓN: el total cuenta hasta el nuevo valor al agregar/quitar platos.
-                TotalAnimado(valor = vm.total)
-            }
+            Spacer(Modifier.height(20.dp))
+            PanelTotal(valor = vm.total, etiqueta = "Total del pedido")
             Spacer(Modifier.height(20.dp))
             Boton(
                 if (vm.cart.isEmpty()) "Elegir proteína" else "Agregar otro plato",
@@ -119,8 +121,6 @@ fun ViewCarrito(
                 estilo = "fantasma",
             )
             Spacer(Modifier.height(10.dp))
-            // CORRECCIÓN: no se puede continuar a Retiro con el carrito vacío.
-            // (El ViewModel también lo valida, por si se llega por otro camino.)
             Boton(
                 "Continuar",
                 onClick = onContinuar,

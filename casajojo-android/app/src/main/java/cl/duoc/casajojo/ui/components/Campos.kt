@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.animateContentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,6 +23,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.ui.theme.Ac
 
 /**
  * Campo de formulario reutilizable: etiqueta + caja de texto + error debajo.
@@ -51,8 +54,10 @@ fun CampoTexto(
 
     Text(
         etiqueta,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 13.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
     )
     OutlinedTextField(
         value = valor,
@@ -89,7 +94,16 @@ fun CampoTexto(
         } else {
             null
         },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedBorderColor = Ac,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedLabelColor = Ac,
+            cursorColor = Ac,
+        ),
         // ANIMACIÓN: cuando aparece o desaparece el mensaje de error, el campo
         // crece/decrece con una transición suave en vez de saltar.
         modifier = Modifier.fillMaxWidth().animateContentSize(),

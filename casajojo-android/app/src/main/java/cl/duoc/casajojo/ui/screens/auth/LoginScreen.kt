@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.screens.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,9 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +25,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -29,15 +37,14 @@ import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
 import cl.duoc.casajojo.ui.components.CampoTexto
 import cl.duoc.casajojo.ui.layouts.Pantalla
+import cl.duoc.casajojo.ui.theme.Ac
+import cl.duoc.casajojo.ui.theme.Gold
+import cl.duoc.casajojo.ui.theme.VerdeOscuro
 import cl.duoc.casajojo.ui.viewmodels.AuthViewModel
-import cl.duoc.casajojo.ui.components.Regla
 
 /**
- * Pantalla de inicio de sesión. Es la primera que se ve si no hay sesión guardada.
- *
- * La pantalla solo DIBUJA la ficha (LoginUiState) que le entrega el ViewModel
- * y le AVISA lo que hace la persona (escribir, tocar Ingresar). No valida ni
- * guarda nada por su cuenta.
+ * Login. Misma validación y mismo ViewModel; ahora con una cabecera roja con
+ * sello "CJ" y el formulario sobre una tarjeta crema.
  */
 @Composable
 fun LoginScreen(
@@ -49,8 +56,6 @@ fun LoginScreen(
     val snackbar = remember { SnackbarHostState() }
     val foco = LocalFocusManager.current
 
-    // Cuando el ViewModel publica un mensaje, se muestra en el Snackbar y se limpia
-    // (si no se limpiara, se volvería a mostrar al redibujar).
     LaunchedEffect(estado.mensaje) {
         estado.mensaje?.let {
             snackbar.showSnackbar(it)
@@ -59,74 +64,116 @@ fun LoginScreen(
     }
 
     val enviar = {
-        foco.clearFocus() // cierra el teclado
+        foco.clearFocus()
         vm.iniciarSesion(onExito = onIngresar)
     }
 
     Box(Modifier.fillMaxSize()) {
         Pantalla {
-            Column(Modifier.padding(top = 32.dp)) {
-                Row {
-                    Text("La Casa ", fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "JoJo",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+            Column(Modifier.padding(top = 8.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(26.dp),
+                    color = Ac,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Box(
+                        Modifier
+                            .background(Brush.linearGradient(listOf(Ac, VerdeOscuro)))
+                            .padding(22.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = CircleShape, color = Color.White) {
+                                Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+                                    Text("CJ", color = Ac, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                                }
+                            }
+                            Column(Modifier.padding(start = 12.dp)) {
+                                Text(
+                                    "LA CASA",
+                                    color = Gold,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                )
+                                Text(
+                                    "JOJO",
+                                    color = Color.White,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                )
+                            }
+                        }
+                    }
                 }
-                Regla()
+
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    "¡Qué rico verte de nuevo!",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Black,
+                )
                 Text(
                     "Inicia sesión para armar tu menú y seguir tus pedidos.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 17.sp,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
 
-                CampoTexto(
-                    etiqueta = "Correo",
-                    valor = estado.correo,
-                    onCambio = vm::onLoginCorreo,
-                    error = estado.errores.correo,
-                    placeholder = "nombre@correo.cl",
-                    tipoTeclado = KeyboardType.Email,
-                    enabled = !estado.cargando,
-                )
-                CampoTexto(
-                    etiqueta = "Contraseña",
-                    valor = estado.password,
-                    onCambio = vm::onLoginPassword,
-                    error = estado.errores.password,
-                    esContrasena = true,
-                    accionIme = ImeAction.Done,
-                    enabled = !estado.cargando,
-                    onListo = enviar,
-                )
-
-                Spacer(Modifier.height(24.dp))
-                // Mientras se verifica, el botón cambia de texto y queda desactivado.
-                Boton(
-                    texto = if (estado.cargando) "Ingresando…" else "Ingresar",
-                    onClick = enviar,
-                    estilo = "acento",
-                    enabled = !estado.cargando,
-                )
-
-                Spacer(Modifier.height(18.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 3.dp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
                 ) {
-                    Text("¿No tienes cuenta? ", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "Crear cuenta",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable(enabled = !estado.cargando, onClick = onIrRegistro),
-                    )
+                    Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
+                        CampoTexto(
+                            etiqueta = "Correo",
+                            valor = estado.correo,
+                            onCambio = vm::onLoginCorreo,
+                            error = estado.errores.correo,
+                            placeholder = "nombre@correo.cl",
+                            tipoTeclado = KeyboardType.Email,
+                            enabled = !estado.cargando,
+                        )
+                        CampoTexto(
+                            etiqueta = "Contraseña",
+                            valor = estado.password,
+                            onCambio = vm::onLoginPassword,
+                            error = estado.errores.password,
+                            esContrasena = true,
+                            accionIme = ImeAction.Done,
+                            enabled = !estado.cargando,
+                            onListo = enviar,
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Boton(
+                            texto = if (estado.cargando) "Ingresando…" else "Ingresar",
+                            onClick = enviar,
+                            estilo = "acento",
+                            enabled = !estado.cargando,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                        ) {
+                            Text(
+                                "¿No tienes cuenta? ",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                            )
+                            Text(
+                                "Crear cuenta",
+                                color = Ac,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                modifier = Modifier.clickable(enabled = !estado.cargando, onClick = onIrRegistro),
+                            )
+                        }
+                    }
                 }
             }
         }
-        // SnackbarHost es el "hueco" donde aparece el aviso; sin él, el mensaje no se ve.
         SnackbarHost(
             hostState = snackbar,
             modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),

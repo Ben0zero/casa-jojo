@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui
 
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -97,7 +98,10 @@ fun CasaJojoApp() {
                 when (sesion) {
                     // Mientras DataStore se lee (una fracción de segundo) mostramos un loader,
                     // así no aparece el login "parpadeando" a alguien que ya tenía sesión.
-                    EstadoSesion.Cargando -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    EstadoSesion.Cargando -> CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                     else -> {
                         // remember: la pantalla inicial se decide UNA vez. Después, entrar o
                         // salir de la sesión se hace navegando, no recreando el NavHost.
@@ -145,12 +149,16 @@ private fun NavegacionApp(
         // Avanzar → la pantalla nueva entra deslizándose desde la derecha.
         // Volver  → sale deslizándose hacia la derecha (sensación de "atrás").
         enterTransition = {
-            slideInHorizontally(animationSpec = tween(260)) { it / 5 } + fadeIn(tween(260))
+            slideInHorizontally(
+                animationSpec = spring(dampingRatio = 0.8f, stiffness = 320f),
+            ) { it / 6 } + fadeIn(tween(240))
         },
-        exitTransition = { fadeOut(tween(160)) },
-        popEnterTransition = { fadeIn(tween(220)) },
+        exitTransition = { fadeOut(tween(150)) },
+        popEnterTransition = { fadeIn(tween(200)) },
         popExitTransition = {
-            slideOutHorizontally(animationSpec = tween(220)) { it / 5 } + fadeOut(tween(220))
+            slideOutHorizontally(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = 340f),
+            ) { it / 6 } + fadeOut(tween(200))
         },
     ) {
 

@@ -9,6 +9,7 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -40,42 +42,70 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.ui.theme.Ac
 import cl.duoc.casajojo.utils.money
 
 /**
  * Indicador de progreso del armado: Proteína → Acompañamientos → Retiro y pago.
- * "paso" es 1, 2 o 3; los pasos alcanzados se pintan con el color de acento.
+ * Ahora son círculos numerados unidos por una línea que se prende en rojo.
  */
 @Composable
 fun PasoBar(paso: Int) {
     val pasos = listOf("Proteína", "Acompañamientos", "Retiro y pago")
-    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        pasos.forEachIndexed { i, text ->
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        pasos.forEachIndexed { i, texto ->
             val activo = paso >= i + 1
-            // ANIMACIÓN: la barra de progreso cambia de gris a naranjo de forma
-            // gradual al avanzar de paso, en vez de cambiar de golpe.
             val colorBarra by animateColorAsState(
-                targetValue = if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                targetValue = if (activo) Ac else MaterialTheme.colorScheme.outline,
                 animationSpec = tween(320),
                 label = "colorPaso$i",
             )
-            // CORRECCIÓN VISUAL: antes el color se aplicaba como fondo de toda la
-            // columna, así que el texto quedaba encima de un bloque naranjo.
-            // Ahora cada paso es una línea delgada de color y, debajo, su nombre.
-            Column(modifier = Modifier.weight(1f).padding(top = 8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(colorBarra),
-                )
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (i > 0) {
+                        Box(Modifier.height(3.dp).weight(1f).background(colorBarra))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(colorBarra),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (activo) "✓" else "${i + 1}",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    if (i < pasos.lastIndex) {
+                        Box(
+                            Modifier
+                                .height(3.dp)
+                                .weight(1f)
+                                .background(
+                                    if (paso > i + 1) Ac else MaterialTheme.colorScheme.outline,
+                                ),
+                        )
+                    }
+                }
                 Text(
-                    text,
-                    color = if (activo) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
+                    texto,
+                    color = if (activo) MaterialTheme.colorScheme.onBackground
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
         }
@@ -88,29 +118,33 @@ fun Marcador(
     estilo: String,
     marcado: Boolean,
 ) {
-    val primario = MaterialTheme.colorScheme.primary
-    val contorno = MaterialTheme.colorScheme.outline
+    val forma = if (estilo == "radio") CircleShape else RoundedCornerShape(7.dp)
     Box(
         modifier = Modifier
-            .size(22.dp)
-            .clip(if (estilo == "radio") CircleShape else RoundedCornerShape(6.dp))
-            .border(2.dp, if (marcado) primario else contorno, if (estilo == "radio") CircleShape else RoundedCornerShape(6.dp))
-            .background(if (marcado) primario else Color.Transparent),
+            .size(24.dp)
+            .clip(forma)
+            .border(2.dp, if (marcado) Ac else MaterialTheme.colorScheme.outline, forma)
+            .background(if (marcado) Ac else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
         when {
             estilo == "radio" && marcado -> Box(
-                Modifier.size(8.dp).clip(CircleShape).background(Color.White)
+                Modifier.size(9.dp).clip(CircleShape).background(Color.White),
             )
-            estilo == "check" && marcado -> Text("✓", color = Color.White, fontSize = 14.sp, lineHeight = 14.sp)
+            estilo == "check" && marcado -> Text(
+                "✓",
+                color = Color.White,
+                fontSize = 15.sp,
+                lineHeight = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
 
 /**
- * Tarjeta seleccionable para proteínas y acompañamientos.
- * Si "deshabilitado" es true (producto agotado) no responde al toque,
- * se ve transparente y el nombre aparece tachado.
+ * Tarjeta seleccionable. Mantiene la misma firma de siempre; solo cambia el
+ * aspecto: esquinas más redondas, sombra y borde rojo cuando está marcada.
  */
 @Composable
 fun OptionCard(
@@ -123,16 +157,20 @@ fun OptionCard(
     deshabilitado: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val primario = MaterialTheme.colorScheme.primary
     Surface(
         onClick = onClick,
         enabled = !deshabilitado,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.5.dp, if (marcado) primario else MaterialTheme.colorScheme.outline
+        shadowElevation = if (marcado) 6.dp else 2.dp,
+        border = BorderStroke(
+            if (marcado) 2.dp else 1.dp,
+            if (marcado) Ac else MaterialTheme.colorScheme.outline,
         ),
-        modifier = modifier.fillMaxWidth().padding(top = 10.dp).alpha(if (deshabilitado) 0.5f else 1f),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .alpha(if (deshabilitado) 0.5f else 1f),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -142,15 +180,34 @@ fun OptionCard(
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     texto,
-                    fontWeight = FontWeight.SemiBold,
-                    textDecoration = if (deshabilitado) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                    fontWeight = FontWeight.Bold,
+                    textDecoration = if (deshabilitado) {
+                        androidx.compose.ui.text.style.TextDecoration.LineThrough
+                    } else {
+                        null
+                    },
                 )
                 if (detalle != null) {
-                    Text(detalle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
+                    Text(
+                        detalle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp,
+                    )
                 }
             }
             if (precio != null) {
-                Text(precio, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                Surface(
+                    shape = RoundedCornerShape(99.dp),
+                    color = if (deshabilitado) MaterialTheme.colorScheme.outline else Ac,
+                ) {
+                    Text(
+                        precio,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+                    )
+                }
             }
         }
     }
@@ -165,20 +222,21 @@ fun Pill(
     Surface(
         shape = RoundedCornerShape(99.dp),
         color = color,
+        shadowElevation = 2.dp,
         modifier = Modifier.padding(end = 8.dp),
     ) {
         Text(
             texto,
             color = Color.White,
             fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
         )
     }
 }
 
 /**
- * Botón de ancho completo. Estilos: "acento" (naranjo), "oscuro" y "fantasma" (solo borde).
+ * Botón de ancho completo. Estilos: "acento" (rojo), "oscuro" y "fantasma".
  * Con enabled = false el botón no responde y se ve atenuado.
  */
 @Composable
@@ -205,22 +263,29 @@ fun Boton(
         }
     }
     val borde = if (estilo == "fantasma") {
-        androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
-    } else null
+        BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
+    } else {
+        null
+    }
     Surface(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(18.dp),
         color = colorFondo,
         border = borde,
-        // Atenuamos el botón deshabilitado para que el usuario note que no puede avanzar.
+        shadowElevation = if (estilo == "fantasma") 0.dp else 6.dp,
         modifier = Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.45f),
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth(),
+            modifier = Modifier.padding(vertical = 17.dp).fillMaxWidth(),
         ) {
-            Text(texto, color = colorTexto, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            Text(
+                texto,
+                color = colorTexto,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+            )
         }
     }
 }
@@ -228,21 +293,21 @@ fun Boton(
 /** Enlace "‹ Volver" que aparece arriba de cada pantalla del flujo. */
 @Composable
 fun Volver(onClick: () -> Unit) {
-    // CORRECCIÓN: el parámetro onClick se recibía pero nunca se usaba, así que
-    // tocar "Volver" no hacía nada (solo funcionaba el botón atrás del teléfono).
-    // Modifier.clickable conecta el toque con la acción de navegación que
-    // entrega App.kt (normalmente nav.popBackStack()).
-    Text(
-        "‹ Volver",
-        modifier = Modifier
-            .padding(top = 8.dp, bottom = 12.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp, horizontal = 4.dp), // área de toque más cómoda
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-    )
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(99.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Text(
+            "← Volver",
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+        )
+    }
 }
 
 @Composable
@@ -251,9 +316,25 @@ fun Titulo(
     subtitulo: String? = null,
 ) {
     Column {
-        Text(titulo, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Box(
+            Modifier
+                .padding(bottom = 10.dp)
+                .background(Ac, RoundedCornerShape(3.dp))
+                .height(4.dp)
+                .width(38.dp),
+        )
+        Text(
+            titulo,
+            fontSize = 27.sp,
+            fontWeight = FontWeight.Black,
+        )
         if (subtitulo != null) {
-            Text(subtitulo, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
+            Text(
+                subtitulo,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
@@ -271,20 +352,23 @@ fun ChipRow(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         opciones.forEach { op ->
+            val activo = seleccion == op
             Surface(
                 onClick = { onSeleccionar(op) },
-                shape = RoundedCornerShape(10.dp),
-                color = if (seleccion == op) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp, MaterialTheme.colorScheme.outline
+                shape = RoundedCornerShape(14.dp),
+                color = if (activo) Ac else MaterialTheme.colorScheme.surface,
+                shadowElevation = if (activo) 4.dp else 1.dp,
+                border = BorderStroke(
+                    1.5.dp,
+                    if (activo) Ac else MaterialTheme.colorScheme.outline,
                 ),
             ) {
                 Text(
                     op,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = if (seleccion == op) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = if (activo) Color.White else MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -292,8 +376,7 @@ fun ChipRow(
 }
 
 /**
- * Muestra un Toast cada vez que el ViewModel publica un error y luego lo limpia,
- * para que no se repita al volver a dibujar la pantalla.
+ * Muestra un Toast cada vez que el ViewModel publica un error y luego lo limpia.
  */
 @Composable
 fun ErrorEcho(
@@ -309,10 +392,7 @@ fun ErrorEcho(
     }
 }
 
-/**
- * Total del pedido con contador animado: al agregar o quitar platos el número
- * se mueve hasta el nuevo valor en ~400 ms, en vez de cambiar de golpe.
- */
+/** Total del pedido con contador animado. */
 @Composable
 fun TotalAnimado(
     valor: Int,
