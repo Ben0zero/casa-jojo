@@ -138,6 +138,43 @@ class ClienteViewModel @JvmOverloads constructor(
         }
     }
 
+    /** Mensaje del CRUD real (PUT) mostrado en "Mi pedido". */
+    var mensajeEstado by mutableStateOf<String?>(null)
+        private set
+
+    var cambiandoEstado by mutableStateOf(false)
+        private set
+
+    /**
+     * EA3 / IE 3.1.3: modificación en tiempo real. El cliente marca el pedido
+     * como listo y el cambio se escribe en Oracle vía ms-ventas (PUT).
+     */
+    fun marcarListoParaRetiro() {
+        val pedido = ultimoPedido.value ?: return
+        viewModelScope.launch {
+            cambiandoEstado = true
+            mensajeEstado = null
+            val correo = sesion.ultimoCorreo()
+            val numero = pedido.pedido.numero
+            val resultado = try {
+                repo.cambiarEstadoRemoto(correo, numero, "LISTO")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            mensajeEstado = resultado.fold(
+                onSuccess = { "Pedido #$numero actualizado en el servidor ✓" },
+                onFailure = { it.message ?: "No se pudo actualizar el pedido" },
+            )
+            cambiandoEstado = false
+        }
+    }
+
+    fun limpiarMensajeEstado() {
+        mensajeEstado = null
+    }
+
     fun limpiarError() {
         error = null
     }

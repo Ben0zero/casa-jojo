@@ -12,10 +12,13 @@ import cl.duoc.casajojo.data.remote.PedidoApi
 import cl.duoc.casajojo.data.remote.RetrofitInstance
 import cl.duoc.casajojo.data.remote.dto.PedidoItemRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoRequestDto
+import cl.duoc.casajojo.data.remote.dto.PedidoResponseDto
 import cl.duoc.casajojo.domain.model.PlatoDraft
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 /**
  * Repositorio de menú y pedidos (EA3 / IL3.1).
@@ -162,16 +165,46 @@ class PedidoRepository(
         }
         val numero = remoto.numero ?: return
         val local = pedidos.porNumero(numero) ?: return
-        pedidos.actualizar(
-            local.copy(
-                estadoPedido = estadoLocal(remoto.estadoPedido),
-                estadoPago = when (remoto.estadoPago?.lowercase()) {
-                    "pagado" -> "pagado"
-                    "no_pagado" -> "no_pagado"
-                    else -> "pendiente"
-                },
-            )
-        )
+        pedidos.actualizar(local.copyEstado(remoto))
+    }
+
+    /**
+     * CRUD real desde la app (PUT): elige "Listo para retiro" en Mi pedido y
+     * el cambio viaja a ms-ventas. Buscamos el id remoto por número + correo
+     * para no agregar columnas a Room (no necesitamos migrar la base de datos).
+     * Si falla la red, Room conserva el estado anterior y la pantalla avisa.
+     */
+    suspend fun cambiarEstadoRemoto(
+        correo: String,
+        numero: Int,
+        estado: String,
+    ): Result<PedidoResponseDto> = withContext(Dispatchers.IO) {
+        try {
+            if (correo.isBlank()) error("Inicia sesión para actualizar el pedido")
+            val remoto = pedidoApi.misPedidos(correo).firstOrNull { it.numero == numero }
+                ?: error("No encontramos el pedido #$numero en el servidor")
+            val id = remoto.id ?: error("El pedido #$numero no tiene id remoto")
+            val respuesta = pedidoApi.cambiarEstado(id, estado)
+            pedidos.porNumero(numero)?.let { local ->
+                pedidos.actualizar(local.copyEstado(respuesta))
+            }
+            Result.success(respuesta)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun Pedido.copyEstado(remoto: PedidoResponseDto): Pedido = copy(
+        estadoPedido = estadoLocal(remoto.estadoPedido),
+        estadoPago = estadoPagoLocal(remoto.estadoPago),
+    )
+
+    private fun estadoPagoLocal(estado: String?): String = when (estado?.lowercase()) {
+        "pagado" -> "pagado"
+        "no_pagado" -> "no_pagado"
+        else -> "pendiente"
     }
 
     private fun estadoLocal(estado: String?): String = when (estado?.uppercase()) {

@@ -1,9 +1,13 @@
 import java.util.Properties
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.testing.jacoco.tasks.JacocoReport
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    id("jacoco")
 }
 
 // EA3 / IL3.3: datos de firma. Se leen de local.properties (no se sube a Git)
@@ -100,4 +104,136 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// EA3 / IL3.2: cobertura de las pruebas unitarias. Genera HTML y XML para
+// acreditar el porcentaje en la defensa. No modifica el APK de entrega.
+jacoco {
+    toolVersion = "0.8.13"
+}
+
+tasks.withType<Test>().configureEach {
+    extensions.configure<JacocoTaskExtension> {
+        isIncludeNoLocationClasses = true
+        excludes = listOf("jdk.internal.*")
+    }
+}
+
+tasks.register<JacocoReport>("jacocoTestReportDebug") {
+    group = "verification"
+    description = "Genera el reporte JaCoCo de las pruebas unitarias debug."
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    // AGP 9 compila Kotlin en built_in_kotlinc; el javac queda vacío en este proyecto.
+    val kotlin = layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")
+    val javac = layout.buildDirectory.dir("intermediates/javac/debug/classes")
+    sourceDirectories.setFrom(files("src/main/java"))
+    classDirectories.setFrom(files(kotlin, javac))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("jacoco/testDebugUnitTest.exec", "jacoco/testDebugUnitTest.ec")
+        }
+    )
+}
+
+/**
+ * Reporte de la lógica verificable con tests unitarios de JVM: repositorios,
+ * dominio y DTO. La UI de Compose y el código generado por Room/DataStore se
+ * validan en emulador, no con JUnit, por eso se excluyen de este porcentaje.
+ */
+tasks.register<JacocoReport>("jacocoTestReportCore") {
+    group = "verification"
+    description = "Cobertura JaCoCo de la lógica (repositorios, dominio y DTO)."
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    val kotlin = layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")
+    val javac = layout.buildDirectory.dir("intermediates/javac/debug/classes")
+    val excluidos = listOf(
+        "cl/duoc/casajojo/ui/**",
+        "cl/duoc/casajojo/data/local/dao/**",
+        "cl/duoc/casajojo/data/local/CasaJojoDatabase*",
+        "cl/duoc/casajojo/data/local/RoomTransactionRunner*",
+        "cl/duoc/casajojo/data/local/SesionPreferences*",
+        "cl/duoc/casajojo/data/local/Converters*",
+        "cl/duoc/casajojo/data/local/PerfilPhotoStorage*",
+        "cl/duoc/casajojo/data/local/TransactionRunner*",
+        "cl/duoc/casajojo/data/local/MenuSeed*",
+        "cl/duoc/casajojo/data/remote/**",
+        "cl/duoc/casajojo/utils/**",
+        "cl/duoc/casajojo/navigation/**",
+        "cl/duoc/casajojo/MainActivity*",
+        "cl/duoc/casajojo/App*",
+        "cl/duoc/casajojo/ComposableSingletons*",
+        "cl/duoc/casajojo/CasaJojoApplication*",
+    )
+    sourceDirectories.setFrom(files("src/main/java"))
+    classDirectories.setFrom(
+        fileTree(kotlin.get().asFile) {
+            include("**/*.class")
+            exclude(excluidos)
+        },
+        fileTree(javac.get().asFile) {
+            include("**/*.class")
+            exclude(excluidos)
+        },
+    )
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("jacoco/testDebugUnitTest.exec", "jacoco/testDebugUnitTest.ec")
+        }
+    )
+}
+
+/** Umbral defendido en la rúbrica: ≥80% de líneas en la lógica verificable. */
+tasks.register<JacocoCoverageVerification>("jacocoVerificar80") {
+    group = "verification"
+    description = "Falla si la cobertura de líneas de la lógica baja de 80%."
+    dependsOn("testDebugUnitTest")
+
+    val kotlin = layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")
+    val javac = layout.buildDirectory.dir("intermediates/javac/debug/classes")
+    val excluidos = listOf(
+        "cl/duoc/casajojo/ui/**",
+        "cl/duoc/casajojo/data/local/dao/**",
+        "cl/duoc/casajojo/data/local/CasaJojoDatabase*",
+        "cl/duoc/casajojo/data/local/RoomTransactionRunner*",
+        "cl/duoc/casajojo/data/local/SesionPreferences*",
+        "cl/duoc/casajojo/data/local/Converters*",
+        "cl/duoc/casajojo/data/local/PerfilPhotoStorage*",
+        "cl/duoc/casajojo/data/local/TransactionRunner*",
+        "cl/duoc/casajojo/data/local/MenuSeed*",
+        "cl/duoc/casajojo/data/remote/**",
+        "cl/duoc/casajojo/utils/**",
+        "cl/duoc/casajojo/navigation/**",
+        "cl/duoc/casajojo/MainActivity*",
+        "cl/duoc/casajojo/App*",
+        "cl/duoc/casajojo/ComposableSingletons*",
+        "cl/duoc/casajojo/CasaJojoApplication*",
+    )
+    classDirectories.setFrom(
+        fileTree(kotlin.get().asFile) { include("**/*.class"); exclude(excluidos) },
+        fileTree(javac.get().asFile) { include("**/*.class"); exclude(excluidos) },
+    )
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("jacoco/testDebugUnitTest.exec", "jacoco/testDebugUnitTest.ec")
+        }
+    )
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
 }

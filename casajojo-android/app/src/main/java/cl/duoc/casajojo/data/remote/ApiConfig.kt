@@ -13,4 +13,7 @@ object ApiConfig {
     val AUTH_URL = "http://" + BuildConfig.API_HOST + ":8081/"
     val MENU_URL = "http://" + BuildConfig.API_HOST + ":8082/"
     val PEDIDOS_URL = "http://" + BuildConfig.API_HOST + ":8086/"
+
+    /** API externa (Open-Meteo): HTTPS y sin API key. No es un microservicio propio. */
+    const val CLIMA_URL = "https://api.open-meteo.com/"
 }

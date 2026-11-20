@@ -32,4 +32,7 @@ object RetrofitInstance {
     val authApi: AuthApi by lazy { retrofit(ApiConfig.AUTH_URL).create(AuthApi::class.java) }
     val menuApi: MenuApi by lazy { retrofit(ApiConfig.MENU_URL).create(MenuApi::class.java) }
     val pedidoApi: PedidoApi by lazy { retrofit(ApiConfig.PEDIDOS_URL).create(PedidoApi::class.java) }
+
+    /** API externa: cliente separado, HTTPS y sin token. */
+    val climaApi: ClimaApi by lazy { retrofit(ApiConfig.CLIMA_URL).create(ClimaApi::class.java) }
 }

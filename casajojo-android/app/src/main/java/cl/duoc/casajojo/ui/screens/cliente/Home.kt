@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.BarraNavegacion
 import cl.duoc.casajojo.ui.components.BarraPedido
@@ -42,6 +43,7 @@ import cl.duoc.casajojo.ui.theme.Ink
 import cl.duoc.casajojo.ui.theme.Mut
 import cl.duoc.casajojo.ui.theme.VerdeOscuro
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
+import cl.duoc.casajojo.ui.viewmodels.ClimaViewModel
 
 /**
  * PASO 0 — Portada.
@@ -59,6 +61,10 @@ fun ViewHome(
     val usuario by vm.usuario.collectAsState()
     val ultimoPedido by vm.ultimoPedido.collectAsState()
     val proteinas by vm.proteinas.collectAsState()
+
+    // API externa (Open-Meteo): estado separado del ViewModel del pedido.
+    val climaVm: ClimaViewModel = viewModel()
+    val clima by climaVm.estado.collectAsState()
 
     // Los 6 platos reales (Room/API). Si aún no cargó, usamos el seed local.
     val antojos = proteinas.take(6).map { it.nombre to it.disponible }.ifEmpty {
@@ -169,6 +175,42 @@ fun ViewHome(
                                 fontSize = 14.sp,
                             )
                         }
+                    }
+                }
+            }
+
+            // API externa (Open-Meteo). Dato secundario para el retiro en Viña:
+            // no interfiere con el menú, el carrito ni los microservicios.
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🌤️", fontSize = 18.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Viña del Mar ahora",
+                            color = Mut,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        val detalleClima = when {
+                            clima.cargando -> "Consultando clima…"
+                            clima.texto != null -> clima.texto ?: "Clima disponible"
+                            clima.fallo -> "Sin conexión con el clima"
+                            else -> "Disponible al abrir la app"
+                        }
+                        Text(
+                            detalleClima,
+                            color = VerdeOscuro,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
                     }
                 }
             }

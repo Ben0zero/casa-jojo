@@ -19,3 +19,7 @@
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Secretos locales de la demo (Oracle). NO subir.
+.env
+*.env

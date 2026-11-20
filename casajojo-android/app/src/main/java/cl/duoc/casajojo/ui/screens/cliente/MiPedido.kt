@@ -96,8 +96,24 @@ fun ViewMiPedido(
                 } else {
                     TarjetaPedido(actual)
                     Spacer(Modifier.height(14.dp))
+
+                    // EA3 / IE 3.1.3: CRUD real. El botón escribe en ms-ventas
+                    // (Oracle) y la respuesta actualiza Room + la pantalla.
+                    val estado = actual.pedido.estadoPedido
+                    if (estado !in setOf("listo", "entregado", "cancelado")) {
+                        Boton(
+                            if (vm.cambiandoEstado) "Actualizando…" else "Marcar listo para retiro",
+                            onClick = { vm.marcarListoParaRetiro() },
+                            estilo = "acento",
+                        )
+                    }
+                    vm.mensajeEstado?.let { mensaje ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(mensaje, color = Ac, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
                     Text(
-                        "Estado: ${textoEstadoPedido(actual.pedido.estadoPedido)} · Pago: ${textoEstadoPago(actual.pedido.estadoPago)}. " +
+                        "Estado: ${textoEstadoPedido(estado)} · Pago: ${textoEstadoPago(actual.pedido.estadoPago)}. " +
                                 "Puedes consultar esta pantalla para seguir tu pedido.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,

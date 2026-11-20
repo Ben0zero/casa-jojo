@@ -164,4 +164,48 @@ class PedidoRepositoryTest {
 
         coVerify(exactly = 0) { pedidoApi.ultimo(any()) }
     }
+
+    @Test
+    fun `cambiar estado remoto hace PUT y actualiza la cache local`() = runTest {
+        coEvery { pedidoApi.misPedidos("camila@casajojo.cl") } returns listOf(
+            PedidoResponseDto(id = 100, numero = 7, estadoPedido = "RECIBIDO"),
+        )
+        coEvery { pedidoApi.cambiarEstado(100L, "LISTO") } returns PedidoResponseDto(
+            id = 100,
+            numero = 7,
+            estadoPedido = "LISTO",
+            estadoPago = "pagado",
+        )
+        coEvery { pedidos.porNumero(7) } returns Pedido(
+            numero = 7,
+            nombre = "Camila",
+            horaRetiro = "13:00",
+            formaPago = "Transferencia",
+            indicaciones = "",
+            estadoPedido = "recibido",
+            estadoPago = "pendiente",
+            total = 4800,
+            fecha = 1L,
+        )
+
+        val resultado = repo.cambiarEstadoRemoto("camila@casajojo.cl", 7, "LISTO")
+
+        resultado.isSuccess shouldBe true
+        coVerify { pedidoApi.cambiarEstado(100L, "LISTO") }
+        val actualizado = slot<Pedido>()
+        coVerify { pedidos.actualizar(capture(actualizado)) }
+        actualizado.captured.estadoPedido shouldBe "listo"
+        actualizado.captured.estadoPago shouldBe "pagado"
+    }
+
+    @Test
+    fun `cambiar estado remoto sin red no borra el estado local`() = runTest {
+        coEvery { pedidoApi.misPedidos(any()) } throws IOException("sin red")
+
+        val resultado = repo.cambiarEstadoRemoto("camila@casajojo.cl", 7, "LISTO")
+
+        resultado.isFailure shouldBe true
+        coVerify(exactly = 0) { pedidoApi.cambiarEstado(any(), any()) }
+        coVerify(exactly = 0) { pedidos.actualizar(any()) }
+    }
 }

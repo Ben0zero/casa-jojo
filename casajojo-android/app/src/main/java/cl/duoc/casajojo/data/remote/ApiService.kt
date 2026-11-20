@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.data.remote
 
+import cl.duoc.casajojo.data.remote.dto.ClimaDto
 import cl.duoc.casajojo.data.remote.dto.LoginRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoResponseDto
@@ -46,4 +47,15 @@ interface PedidoApi {
         @Path("id") id: Long,
         @Query("estado") estado: String,
     ): PedidoResponseDto
+}
+
+/** API externa: Open-Meteo. Base URL distinta, sin autenticación. */
+interface ClimaApi {
+    @GET("v1/forecast")
+    suspend fun climaActual(
+        @Query("latitude") lat: Double,
+        @Query("longitude") lon: Double,
+        @Query("current") current: String,
+        @Query("timezone") timezone: String,
+    ): ClimaDto
 }
