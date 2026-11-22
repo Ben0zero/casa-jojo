@@ -73,4 +73,9 @@ object Notificaciones {
             NotificationManagerCompat.from(context).notify(ID_PEDIDO_REGISTRADO, notificacion)
         }
     }
+
+    /** RF-13: al cancelar, retira el aviso de "pedido registrado". */
+    fun quitarPedidoRegistrado(context: Context) {
+        NotificationManagerCompat.from(context).cancel(ID_PEDIDO_REGISTRADO)
+    }
 }

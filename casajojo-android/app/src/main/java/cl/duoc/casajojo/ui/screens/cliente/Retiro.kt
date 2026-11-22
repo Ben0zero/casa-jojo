@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.CampoTexto
 import cl.duoc.casajojo.ui.components.ChipRow
 import cl.duoc.casajojo.ui.components.ErrorEcho
 import cl.duoc.casajojo.ui.components.Nota
@@ -55,30 +56,31 @@ fun ViewRetiro(
             Titulo("Retiro y pago", "Casi listo: dinos cómo y cuándo retiras.")
             Spacer(Modifier.height(20.dp))
 
-            TituloBloque("✍️", "Nombre para el retiro")
-            OutlinedTextField(
-                value = vm.nombre,
-                onValueChange = { vm.nombre = it },
-                placeholder = { Text("Nombre para el retiro") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+            // Portado desde android: error bajo el campo y ✓ al validar.
+            CampoTexto(
+                etiqueta = "Nombre para el retiro",
+                valor = vm.retiro.nombre,
+                onCambio = vm::onNombre,
+                error = vm.retiro.errores.nombre,
+                placeholder = "Nombre para el retiro",
+                enabled = !vm.enRegistro,
             )
 
             Spacer(Modifier.height(20.dp))
             TituloBloque("⏰", "Hora de retiro")
             Spacer(Modifier.height(10.dp))
-            ChipRow(HORAS_RETIRO, vm.horaRetiro, { vm.horaRetiro = it })
+            ChipRow(HORAS_RETIRO, vm.retiro.horaRetiro, vm::onHoraRetiro)
 
             Spacer(Modifier.height(20.dp))
             TituloBloque("💳", "Forma de pago")
             Spacer(Modifier.height(10.dp))
-            ChipRow(FORMAS_PAGO, vm.formaPago, { vm.formaPago = it })
+            ChipRow(FORMAS_PAGO, vm.retiro.formaPago, vm::onFormaPago)
 
             Spacer(Modifier.height(20.dp))
             TituloBloque("📝", "Indicaciones (opcional)")
             OutlinedTextField(
-                value = vm.indicaciones,
-                onValueChange = { vm.indicaciones = it },
+                value = vm.retiro.indicaciones,
+                onValueChange = vm::onIndicaciones,
                 placeholder = { Text("Ej.: sin ají, bien cocido") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3,

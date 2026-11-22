@@ -55,6 +55,7 @@ fun ViewHome(
     vm: ClienteViewModel,
     onComenzar: () -> Unit,
     onMiPedido: () -> Unit,
+    onHistorial: () -> Unit,
     onPerfil: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
@@ -277,6 +278,7 @@ fun ViewHome(
             if (ultimoPedido != null) {
                 FilaAcceso(glifo = "🧾", texto = "Ver mi pedido", onClick = onMiPedido)
             }
+            FilaAcceso(glifo = "📚", texto = "Historial de pedidos", onClick = onHistorial)
             FilaAcceso(glifo = "↪️", texto = "Cerrar sesión", onClick = onCerrarSesion)
 
             Nota("Pide antes de las 12 y retira sin esperar: tu almuerzo sale en menos de 10 minutos.")

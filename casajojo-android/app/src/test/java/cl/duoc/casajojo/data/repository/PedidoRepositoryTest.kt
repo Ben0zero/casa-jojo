@@ -208,4 +208,103 @@ class PedidoRepositoryTest {
         coVerify(exactly = 0) { pedidoApi.cambiarEstado(any(), any()) }
         coVerify(exactly = 0) { pedidos.actualizar(any()) }
     }
+
+    private fun pedidoReciente(fecha: Long) = Pedido(
+        numero = 7,
+        nombre = "Camila",
+        horaRetiro = "13:00",
+        formaPago = "Efectivo",
+        indicaciones = "",
+        estadoPedido = "recibido",
+        estadoPago = "pendiente",
+        total = 4800,
+        fecha = fecha,
+    )
+
+    @Test
+    fun `cancelar pedido remoto hace PUT CANCELADO y actualiza Room`() = runTest {
+        val ahora = System.currentTimeMillis()
+        val pedido = pedidoReciente(ahora - 1_000L)
+        coEvery { pedidoApi.misPedidos("camila@casajojo.cl") } returns listOf(
+            PedidoResponseDto(id = 100, numero = 7, estadoPedido = "RECIBIDO"),
+        )
+        coEvery { pedidoApi.cambiarEstado(100L, "CANCELADO") } returns PedidoResponseDto(
+            id = 100,
+            numero = 7,
+            estadoPedido = "CANCELADO",
+        )
+        coEvery { pedidos.cancelar(any(), any()) } returns 1
+
+        val resultado = repo.cancelarPedidoRemoto("camila@casajojo.cl", pedido, ahora)
+
+        resultado.isSuccess shouldBe true
+        coVerify { pedidoApi.cambiarEstado(100L, "CANCELADO") }
+        coVerify { pedidos.cancelar(pedido.id, any()) }
+        coVerify(exactly = 0) { pedidos.actualizar(any()) }
+    }
+
+    @Test
+    fun `cancelar pedido remoto fuera de plazo no llama a la API`() = runTest {
+        val ahora = System.currentTimeMillis()
+        val pedido = pedidoReciente(ahora - 20_000L)
+
+        val resultado = repo.cancelarPedidoRemoto("camila@casajojo.cl", pedido, ahora)
+
+        resultado.isFailure shouldBe true
+        coVerify(exactly = 0) { pedidoApi.misPedidos(any()) }
+        coVerify(exactly = 0) { pedidoApi.cambiarEstado(any(), any()) }
+        coVerify(exactly = 0) { pedidos.cancelar(any(), any()) }
+    }
+
+    @Test
+    fun `cancelar pedido remoto sin red no cancela la caché local`() = runTest {
+        val pedido = pedidoReciente(System.currentTimeMillis())
+        coEvery { pedidoApi.misPedidos(any()) } throws IOException("sin red")
+
+        val resultado = repo.cancelarPedidoRemoto("camila@casajojo.cl", pedido)
+
+        resultado.isFailure shouldBe true
+        coVerify(exactly = 0) { pedidos.cancelar(any(), any()) }
+        coVerify(exactly = 0) { pedidos.actualizar(any()) }
+    }
+
+    @Test
+    fun `marcar entregado remoto paga y marca ENTREGADO en Oracle`() = runTest {
+        val pedido = pedidoReciente(System.currentTimeMillis()).copy(estadoPedido = "listo")
+        coEvery { pedidoApi.misPedidos("camila@casajojo.cl") } returns listOf(
+            PedidoResponseDto(id = 100, numero = 7, estadoPedido = "LISTO"),
+        )
+        coEvery { pedidoApi.pagar(100L) } returns PedidoResponseDto(
+            id = 100,
+            numero = 7,
+            estadoPago = "pagado",
+        )
+        coEvery { pedidoApi.cambiarEstado(100L, "ENTREGADO") } returns PedidoResponseDto(
+            id = 100,
+            numero = 7,
+            estadoPedido = "ENTREGADO",
+            estadoPago = "pagado",
+        )
+        coEvery { pedidos.marcarEntregado(pedido.id) } returns 1
+
+        val resultado = repo.marcarEntregadoRemoto("camila@casajojo.cl", pedido)
+
+        resultado.isSuccess shouldBe true
+        resultado.getOrNull()?.estadoPago shouldBe "pagado"
+        coVerify { pedidoApi.pagar(100L) }
+        coVerify { pedidoApi.cambiarEstado(100L, "ENTREGADO") }
+        coVerify { pedidos.marcarEntregado(pedido.id) }
+    }
+
+    @Test
+    fun `marcar entregado remoto sin red no toca Room`() = runTest {
+        val pedido = pedidoReciente(System.currentTimeMillis()).copy(estadoPedido = "listo")
+        coEvery { pedidoApi.misPedidos(any()) } throws IOException("sin red")
+
+        val resultado = repo.marcarEntregadoRemoto("camila@casajojo.cl", pedido)
+
+        resultado.isFailure shouldBe true
+        coVerify(exactly = 0) { pedidoApi.pagar(any()) }
+        coVerify(exactly = 0) { pedidos.marcarEntregado(any()) }
+    }
 }

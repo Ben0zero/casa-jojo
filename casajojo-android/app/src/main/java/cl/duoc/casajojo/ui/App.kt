@@ -40,6 +40,7 @@ import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 import cl.duoc.casajojo.ui.screens.cliente.ViewAcompanamientos
 import cl.duoc.casajojo.ui.screens.cliente.ViewCarrito
 import cl.duoc.casajojo.ui.screens.cliente.ViewConfirmado
+import cl.duoc.casajojo.ui.screens.cliente.ViewHistorial
 import cl.duoc.casajojo.ui.screens.cliente.ViewHome
 import cl.duoc.casajojo.ui.screens.cliente.ViewMiPedido
 import cl.duoc.casajojo.ui.screens.cliente.ViewProteina
@@ -188,6 +189,7 @@ private fun NavegacionApp(
                 vm = vm,
                 onComenzar = { nav.navigate(AppRoutes.Proteina.route) },
                 onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
+                onHistorial = { nav.navigate(AppRoutes.Historial.route) },
                 onPerfil = { nav.navigate(AppRoutes.Perfil.route) },
                 onCerrarSesion = {
                     authVm.cerrarSesion {
@@ -274,6 +276,16 @@ private fun NavegacionApp(
                 onVolver = { nav.popBackStack(AppRoutes.Home.route, false) },
                 onCart = { nav.navigate(AppRoutes.Carrito.route) },
                 onEmpezar = { nav.popBackStack(AppRoutes.Home.route, false) },
+                onHistorial = { nav.navigate(AppRoutes.Historial.route) },
+            )
+        }
+
+        // PASO 7 — Historial (RF-14): entregados y cancelados del usuario.
+        composable(AppRoutes.Historial.route) {
+            ViewHistorial(
+                vm = vm,
+                onVolver = { nav.popBackStack(AppRoutes.Home.route, false) },
+                onCart = { nav.navigate(AppRoutes.Carrito.route) },
             )
         }
     }

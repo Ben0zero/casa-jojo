@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,11 +14,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,7 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.CancelarPedido
 import cl.duoc.casajojo.ui.components.Confeti
+import cl.duoc.casajojo.ui.components.MSG_FUERA_DE_PLAZO
+import cl.duoc.casajojo.ui.components.MSG_PEDIDO_CANCELADO
 import cl.duoc.casajojo.ui.components.Pill
 import cl.duoc.casajojo.utils.compartirTexto
 import cl.duoc.casajojo.utils.colorEstadoPago
@@ -53,6 +62,14 @@ fun ViewConfirmado(
     val pedido = ultimoPedido?.pedido
     val platos = ultimoPedido?.platos.orEmpty()
 
+    // RF-13: avisos de cancelación y estado "cancelado" en la tarjeta.
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    fun avisar(mensaje: String) {
+        scope.launch { snackbar.showSnackbar(mensaje) }
+    }
+    val cancelado = pedido?.estadoPedido == "cancelado"
+
     val context = LocalContext.current
     val resumen = buildString {
         append("Pedido #${vm.ultimoNumero ?: pedido?.numero ?: "…"} en La Casa JoJo")
@@ -63,6 +80,7 @@ fun ViewConfirmado(
         }
     }
 
+    Box(Modifier.fillMaxSize()) {
     Pantalla {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -85,13 +103,18 @@ fun ViewConfirmado(
                         modifier = Modifier
                             .size(76.dp)
                             .clip(CircleShape)
-                            .background(Ac),
+                            .background(if (cancelado) MaterialTheme.colorScheme.error else Ac),
                     ) {
-                        Text("✓", color = Color.White, fontSize = 42.sp, lineHeight = 42.sp)
+                        Text(
+                            if (cancelado) "✕" else "✓",
+                            color = Color.White,
+                            fontSize = 42.sp,
+                            lineHeight = 42.sp,
+                        )
                     }
                     Spacer(Modifier.height(18.dp))
                     Text(
-                        "¡Pedido confirmado!",
+                        if (cancelado) "Pedido cancelado" else "¡Pedido confirmado!",
                         fontSize = 25.sp,
                         fontWeight = FontWeight.Black,
                     )
@@ -159,6 +182,23 @@ fun ViewConfirmado(
             )
             Spacer(Modifier.height(10.dp))
             Boton("Hacer otro pedido", onClick = onOtroPedido, estilo = "fantasma")
+
+            // RF-13: el botón aparece solo durante los 15 s posteriores al pedido.
+            ultimoPedido?.pedido?.let { p ->
+                Spacer(Modifier.height(14.dp))
+                CancelarPedido(
+                    pedido = p,
+                    cancelando = vm.cancelando,
+                    onCancelar = {
+                        vm.cancelarPedido(p) { ok ->
+                            if (ok) avisar(MSG_PEDIDO_CANCELADO) else avisar(MSG_FUERA_DE_PLAZO)
+                        }
+                    },
+                    onFueraDePlazo = { avisar(MSG_FUERA_DE_PLAZO) },
+                )
+            }
         }
+    }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 }

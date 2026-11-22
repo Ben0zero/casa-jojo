@@ -14,6 +14,7 @@ import cl.duoc.casajojo.data.remote.dto.PedidoItemRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoResponseDto
 import cl.duoc.casajojo.domain.model.PlatoDraft
+import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,25 @@ class PedidoRepository(
 
     fun ultimoPedidoDe(usuarioId: Long): Flow<PedidoWithPlatos?> =
         pedidos.ultimoDelUsuario(usuarioId)
+
+    /** RF-14: todos los pedidos del usuario (RF-19: antes solo se veía el último). */
+    fun pedidosDe(usuarioId: Long): Flow<List<PedidoWithPlatos>> =
+        pedidos.todosDelUsuario(usuarioId)
+
+    /** RF-14: pedidos en un estado concreto, para el Historial. */
+    fun historialDe(usuarioId: Long, estado: String): Flow<List<PedidoWithPlatos>> =
+        pedidos.delUsuarioPorEstado(usuarioId, estado)
+
+    /**
+     * RF-13: cancela solo si sigue en plazo. La regla se revisa otra vez en el
+     * UPDATE de Room, así que un retraso de la UI no permite cancelar fuera de tiempo.
+     */
+    suspend fun cancelarPedido(id: Long, ahora: Long = System.currentTimeMillis()): Boolean =
+        pedidos.cancelar(id, ReglasPedido.limiteCancelacion(ahora)) > 0
+
+    /** RF-14: retiro con QR → entregado y pagado. */
+    suspend fun marcarEntregado(id: Long): Boolean =
+        pedidos.marcarEntregado(id) > 0
 
     /**
      * Descarga el menú de ms-catalogoProductos y reemplaza la caché de Room.
@@ -180,19 +200,88 @@ class PedidoRepository(
         estado: String,
     ): Result<PedidoResponseDto> = withContext(Dispatchers.IO) {
         try {
-            if (correo.isBlank()) error("Inicia sesión para actualizar el pedido")
-            val remoto = pedidoApi.misPedidos(correo).firstOrNull { it.numero == numero }
-                ?: error("No encontramos el pedido #$numero en el servidor")
-            val id = remoto.id ?: error("El pedido #$numero no tiene id remoto")
+            val id = idRemoto(correo, numero)
             val respuesta = pedidoApi.cambiarEstado(id, estado)
-            pedidos.porNumero(numero)?.let { local ->
-                pedidos.actualizar(local.copyEstado(respuesta))
+            actualizarCache(numero, respuesta)
+            Result.success(respuesta)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * RF-13: la cancelación ya no queda solo en Room. Se revisa el plazo antes
+     * de escribir, se envía CANCELADO a ms-ventas (Oracle) y se refleja en la
+     * caché con el UPDATE protegido por fecha.
+     */
+    suspend fun cancelarPedidoRemoto(
+        correo: String,
+        pedido: Pedido,
+        ahora: Long = System.currentTimeMillis(),
+    ): Result<PedidoResponseDto> = withContext(Dispatchers.IO) {
+        try {
+            if (!ReglasPedido.puedeCancelar(pedido.fecha, ahora, pedido.estadoPedido)) {
+                error("El plazo de 15 segundos para cancelar ya terminó")
+            }
+            val id = idRemoto(correo, pedido.numero)
+            val respuesta = pedidoApi.cambiarEstado(id, "CANCELADO")
+            val filas = pedidos.cancelar(
+                pedido.id,
+                ReglasPedido.limiteCancelacion(System.currentTimeMillis()),
+            )
+            if (filas == 0) {
+                // El remoto ya se canceló: alineamos Room aunque cambiara de estado.
+                actualizarCache(pedido.numero, respuesta)
             }
             Result.success(respuesta)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * RF-14: el QR marca el retiro en Oracle. Usa el PUT /pagar que ya existía
+     * en ms-ventas y luego el PUT /estado → ENTREGADO para que el Historial
+     * filtre bien. Si la red falla, Room no se toca y la pantalla avisa.
+     */
+    suspend fun marcarEntregadoRemoto(
+        correo: String,
+        pedido: Pedido,
+    ): Result<PedidoResponseDto> = withContext(Dispatchers.IO) {
+        try {
+            if (!ReglasPedido.puedeRetirarConQr(pedido.estadoPedido)) {
+                error("Este pedido ya no se puede retirar")
+            }
+            val id = idRemoto(correo, pedido.numero)
+            pedidoApi.pagar(id)
+            val respuesta = pedidoApi.cambiarEstado(id, "ENTREGADO")
+                .copy(estadoPago = "pagado")
+            if (pedidos.marcarEntregado(pedido.id) == 0) {
+                actualizarCache(pedido.numero, respuesta)
+            }
+            Result.success(respuesta)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Busca el id de Oracle por número + correo sin migrar Room. */
+    private suspend fun idRemoto(correo: String, numero: Int): Long {
+        if (correo.isBlank()) error("Inicia sesión para actualizar el pedido")
+        val remoto = pedidoApi.misPedidos(correo).firstOrNull { it.numero == numero }
+            ?: error("No encontramos el pedido #$numero en el servidor")
+        return remoto.id ?: error("El pedido #$numero no tiene id remoto")
+    }
+
+    private suspend fun actualizarCache(numero: Int, remoto: PedidoResponseDto) {
+        pedidos.porNumero(numero)?.let { local ->
+            pedidos.actualizar(local.copyEstado(remoto))
         }
     }
 

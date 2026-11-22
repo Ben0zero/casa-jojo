@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +39,10 @@ import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.ui.layouts.BarraSuperior
 import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.CancelarPedido
 import cl.duoc.casajojo.ui.components.FotoPlaceholder
+import cl.duoc.casajojo.ui.components.MSG_FUERA_DE_PLAZO
+import cl.duoc.casajojo.ui.components.MSG_PEDIDO_CANCELADO
 import cl.duoc.casajojo.ui.components.LineaEstado
 import cl.duoc.casajojo.ui.components.Pill
 import cl.duoc.casajojo.ui.components.Titulo
@@ -61,10 +68,18 @@ fun ViewMiPedido(
     onVolver: () -> Unit,
     onCart: () -> Unit,
     onEmpezar: () -> Unit,
+    onHistorial: () -> Unit,
 ) {
     val pedido by vm.ultimoPedido.collectAsState()
     LaunchedEffect(Unit) { vm.sincronizarUltimoPedido() }
 
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    fun avisar(mensaje: String) {
+        scope.launch { snackbar.showSnackbar(mensaje) }
+    }
+
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxWidth()) {
         BarraSuperior(cartCount = vm.cart.size, onCartClick = onCart)
         Pantalla {
@@ -94,8 +109,21 @@ fun ViewMiPedido(
                     Spacer(Modifier.height(20.dp))
                     Boton("Hacer un pedido", onClick = onEmpezar, estilo = "acento")
                 } else {
-                    TarjetaPedido(actual)
+                    TarjetaPedido(actual, vm)
                     Spacer(Modifier.height(14.dp))
+
+                    // RF-13: cancelación con cuenta regresiva de 15 s.
+                    CancelarPedido(
+                        pedido = actual.pedido,
+                        cancelando = vm.cancelando,
+                        onCancelar = {
+                            vm.cancelarPedido(actual.pedido) { ok ->
+                                if (ok) avisar(MSG_PEDIDO_CANCELADO) else avisar(MSG_FUERA_DE_PLAZO)
+                            }
+                        },
+                        onFueraDePlazo = { avisar(MSG_FUERA_DE_PLAZO) },
+                    )
+                    Spacer(Modifier.height(12.dp))
 
                     // EA3 / IE 3.1.3: CRUD real. El botón escribe en ms-ventas
                     // (Oracle) y la respuesta actualiza Room + la pantalla.
@@ -118,14 +146,19 @@ fun ViewMiPedido(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
+
+                    Spacer(Modifier.height(12.dp))
+                    Boton("Ver historial de pedidos", onClick = onHistorial, estilo = "fantasma")
                 }
             }
         }
     }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
 }
 
 @Composable
-private fun TarjetaPedido(datos: PedidoWithPlatos) {
+private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
     val p = datos.pedido
     val context = LocalContext.current
     var errorQr by remember { mutableStateOf<String?>(null) }
@@ -200,6 +233,9 @@ private fun TarjetaPedido(datos: PedidoWithPlatos) {
                                             val enlace = runCatching { Uri.parse(valor) }.getOrNull()
                                             if (enlace?.scheme == "https" && !enlace.host.isNullOrBlank()) {
                                                 context.startActivity(Intent(Intent.ACTION_VIEW, enlace))
+                                                // RF-14: al pagar con QR, el pedido queda entregado
+                                                // y pasa al Historial (Room actualiza la lista sola).
+                                                vm.registrarRetiro(p)
                                             } else {
                                                 errorQr = "El QR no contiene un enlace web de pago"
                                             }

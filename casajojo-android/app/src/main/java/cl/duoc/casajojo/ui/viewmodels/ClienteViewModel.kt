@@ -10,6 +10,7 @@ import cl.duoc.casajojo.data.local.CasaJojoDatabase
 import cl.duoc.casajojo.data.local.RoomTransactionRunner
 import cl.duoc.casajojo.utils.Notificaciones
 import cl.duoc.casajojo.data.local.SesionPreferences
+import cl.duoc.casajojo.data.local.entity.Pedido
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.data.local.entity.Producto
 import cl.duoc.casajojo.data.local.entity.Usuario
@@ -19,11 +20,14 @@ import cl.duoc.casajojo.domain.model.PlatoDraft
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -80,6 +84,35 @@ class ClienteViewModel @JvmOverloads constructor(
         .flatMapLatest { id -> if (id == null) flowOf(null) else repo.ultimoPedidoDe(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    // ---------- RF-13 / RF-14: portadas desde origin/android ----------
+
+    /** RF-14: todos los pedidos del usuario (antes solo se veía el último). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val misPedidos: StateFlow<List<PedidoWithPlatos>> = sesion.usuarioId
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repo.pedidosDe(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Chip elegido en el Historial ("Entregados" por defecto). */
+    private val _filtroHistorial = MutableStateFlow(FiltroHistorial.Entregados)
+    val filtroHistorial: StateFlow<FiltroHistorial> = _filtroHistorial
+
+    /**
+     * Pedidos finalizados según el filtro. combine + flatMapLatest: si cambia la
+     * sesión o el chip, se deja la consulta anterior y se escucha la nueva.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val historial: StateFlow<HistorialUiState> =
+        combine(sesion.usuarioId, _filtroHistorial) { id, filtro -> id to filtro }
+            .flatMapLatest { (id, filtro) ->
+                if (id == null) flowOf(HistorialUiState(filtro))
+                else repo.historialDe(id, filtro.estado).map { HistorialUiState(filtro, it) }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HistorialUiState())
+
+    fun onFiltroHistorial(filtro: FiltroHistorial) {
+        _filtroHistorial.value = filtro
+    }
+
     // ---------- 2) Estado del armado del pedido ----------
     // "private set": las pantallas pueden leerlo, pero solo el ViewModel lo modifica.
 
@@ -98,11 +131,13 @@ class ClienteViewModel @JvmOverloads constructor(
     var acompanamientosSel by mutableStateOf<List<String>>(emptyList())
         private set
 
-    // Campos del formulario de Retiro (los escribe directamente la pantalla).
-    var nombre by mutableStateOf("")
-    var horaRetiro by mutableStateOf("13:00")
-    var formaPago by mutableStateOf("Transferencia")
-    var indicaciones by mutableStateOf("")
+    /**
+     * Ficha del formulario de Retiro (portada desde origin/android):
+     * datos y errores por campo en un solo objeto. La pantalla ya no escribe
+     * directo las variables; usa onNombre, onHoraRetiro, etc.
+     */
+    var retiro by mutableStateOf(RetiroUiState())
+        private set
 
     /** Mensaje de error a mostrar (lo muestra ErrorEcho como Toast). */
     var error by mutableStateOf<String?>(null)
@@ -242,6 +277,25 @@ class ClienteViewModel @JvmOverloads constructor(
         }
     }
 
+    // ---------- PASO 4. Formulario de Retiro (validación por campo) ----------
+
+    fun onNombre(v: String) {
+        val err = if (retiro.intentado) ReglasPedido.validarRetiro(v).nombre else null
+        retiro = retiro.copy(nombre = v, errores = retiro.errores.copy(nombre = err))
+    }
+
+    fun onHoraRetiro(v: String) {
+        retiro = retiro.copy(horaRetiro = v)
+    }
+
+    fun onFormaPago(v: String) {
+        retiro = retiro.copy(formaPago = v)
+    }
+
+    fun onIndicaciones(v: String) {
+        retiro = retiro.copy(indicaciones = v)
+    }
+
     /**
      * PASO 4 → 5. Valida el formulario, guarda el pedido en Room y,
      * si todo sale bien, ejecuta "despues" (App.kt navega a Confirmado).
@@ -253,14 +307,20 @@ class ClienteViewModel @JvmOverloads constructor(
         // CORRECCIÓN: antes solo se validaba el nombre y se podía guardar un
         // pedido sin platos ($0). Ahora se valida también el carrito.
         // firstNotNullOfOrNull devuelve el primer mensaje de error que encuentre.
-        val err = listOf(
-            ReglasPedido.validarCarrito(cart),
-            ReglasPedido.validarNombre(nombre),
-        ).firstNotNullOfOrNull { it }
-        if (err != null) {
-            error = err
+        val errCarrito = ReglasPedido.validarCarrito(cart)
+        if (errCarrito != null) {
+            error = errCarrito
             return
         }
+
+        // Portado desde android: errores bajo cada campo + aviso general.
+        val errores = ReglasPedido.validarRetiro(retiro.nombre)
+        retiro = retiro.copy(errores = errores, intentado = true)
+        if (errores.hayErrores) {
+            error = "Revisa los campos marcados"
+            return
+        }
+        val datos = retiro
 
         // viewModelScope.launch inicia una corrutina: el guardado corre sin
         // congelar la pantalla, y se cancela sola si el ViewModel se destruye.
@@ -271,10 +331,10 @@ class ClienteViewModel @JvmOverloads constructor(
                     // NUEVO (fase 1): el pedido queda asociado a la cuenta.
                     // first() lee una vez el id guardado en DataStore.
                     usuarioId = sesion.usuarioId.first(),
-                    nombre = nombre.trim(),
-                    horaRetiro = horaRetiro,
-                    formaPago = formaPago,
-                    indicaciones = indicaciones.trim(),
+                    nombre = datos.nombre.trim(),
+                    horaRetiro = datos.horaRetiro,
+                    formaPago = datos.formaPago,
+                    indicaciones = datos.indicaciones.trim(),
                     platos = cart.toList(),
                     correo = sesion.ultimoCorreo(),
                     origen = "Mostrador",
@@ -284,7 +344,7 @@ class ClienteViewModel @JvmOverloads constructor(
                 // RECURSO NATIVO: aviso del sistema. Se toma la hora ANTES de
                 // resetear(), porque resetear() deja el formulario vacío y la
                 // notificación quedaría sin hora.
-                Notificaciones.pedidoRegistrado(getApplication(), numero, horaRetiro)
+                Notificaciones.pedidoRegistrado(getApplication(), numero, datos.horaRetiro)
 
                 resetear()
                 despues()
@@ -308,8 +368,66 @@ class ClienteViewModel @JvmOverloads constructor(
      * el nombre de la cuenta. Si la persona ya escribió algo, no lo pisa.
      */
     fun prellenarNombre(nombreUsuario: String?) {
-        if (nombre.isBlank() && !nombreUsuario.isNullOrBlank()) {
-            nombre = nombreUsuario
+        if (retiro.nombre.isBlank() && !nombreUsuario.isNullOrBlank()) {
+            onNombre(nombreUsuario)
+        }
+    }
+
+    /** RF-13: true mientras se cancela (evita doble toque). */
+    var cancelando by mutableStateOf(false)
+        private set
+
+    /**
+     * RF-13: cancela en ms-ventas/Oracle y refleja el cambio en Room. El plazo
+     * se revisa en la UI, en el repositorio y en el UPDATE de Room, así que
+     * alTerminar recibe false si ya no se podía.
+     */
+    fun cancelarPedido(pedido: Pedido, alTerminar: (Boolean) -> Unit) {
+        if (cancelando) return
+        viewModelScope.launch {
+            cancelando = true
+            try {
+                val resultado = repo.cancelarPedidoRemoto(sesion.ultimoCorreo(), pedido)
+                val cancelado = resultado.isSuccess
+                if (cancelado) {
+                    Notificaciones.quitarPedidoRegistrado(getApplication())
+                } else {
+                    error = resultado.exceptionOrNull()?.message
+                        ?: "No pudimos cancelar tu pedido. Intenta de nuevo."
+                }
+                alTerminar(cancelado)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = "No pudimos cancelar tu pedido. Intenta de nuevo."
+            } finally {
+                cancelando = false
+            }
+        }
+    }
+
+    /**
+     * RF-14: al leer bien el QR de retiro, el pedido queda "pagado" y
+     * "entregado" en Oracle y en Room (así aparece en el Historial). Un pedido
+     * cancelado no cambia: lo impiden la regla y la consulta del DAO.
+     */
+    fun registrarRetiro(pedido: Pedido) {
+        if (!ReglasPedido.puedeRetirarConQr(pedido.estadoPedido)) {
+            error = "Este pedido ya no se puede retirar"
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val resultado = repo.marcarEntregadoRemoto(sesion.ultimoCorreo(), pedido)
+                if (resultado.isFailure) {
+                    error = resultado.exceptionOrNull()?.message
+                        ?: "No pudimos registrar el retiro. Intenta de nuevo."
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = "No pudimos registrar el retiro. Intenta de nuevo."
+            }
         }
     }
 
@@ -325,10 +443,7 @@ class ClienteViewModel @JvmOverloads constructor(
         solo = false
         proteinaSeleccionada = null
         acompanamientosSel = emptyList()
-        nombre = ""
-        horaRetiro = "13:00"
-        formaPago = "Transferencia"
-        indicaciones = ""
+        retiro = RetiroUiState()
         cart = emptyList()
     }
 }

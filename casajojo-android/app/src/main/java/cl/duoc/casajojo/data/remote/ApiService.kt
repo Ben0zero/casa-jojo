@@ -47,6 +47,10 @@ interface PedidoApi {
         @Path("id") id: Long,
         @Query("estado") estado: String,
     ): PedidoResponseDto
+
+    /** RF-14: el QR de retiro marca el pago como pagado en ms-ventas/Oracle. */
+    @PUT("api/pedidos/{id}/pagar")
+    suspend fun pagar(@Path("id") id: Long): PedidoResponseDto
 }
 
 /** API externa: Open-Meteo. Base URL distinta, sin autenticación. */

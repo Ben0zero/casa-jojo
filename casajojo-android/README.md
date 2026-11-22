@@ -150,12 +150,22 @@ cl.duoc.casajojo/
 
 Room y DataStore son la **caché**: los repositorios consultan primero la API y, si no hay red, conservan la última copia local. Los pedidos Confirmados se envían a `ms-ventas` y el estado se refresca al abrir “Mi pedido”.
 
+## Mejoras adoptadas de `origin/android` (solo en local)
+
+Se portaron de forma controlada —sin merge de ramas— las funciones que faltaban en `main`:
+
+- **RF-13 — Cancelar pedido**: botón con cuenta regresiva de 15 s basada en `Pedido.fecha` (Room), diálogo de confirmación y revalidación del plazo antes de escribir. La cancelación se envía a `ms-ventas` con `PUT /api/pedidos/{id}/estado?estado=CANCELADO` (Oracle) y se refleja en Room con el `UPDATE` protegido por fecha. Si no hay red, no se cancela nada y la pantalla avisa, para que caché y BD nunca se descuadren. Disponible en Confirmado y Mi pedido; al cancelar se retira la notificación del pedido.
+- **RF-14 — Historial**: pantalla con chips *Entregados* / *Cancelados* sobre pedidos del usuario en Room, con entrada animada en cascada. El QR de Mi pedido usa `PUT /api/pedidos/{id}/pagar` y `PUT .../estado?estado=ENTREGADO`: el retiro queda pagado y entregado en Oracle y en la caché, y la lista se actualiza sola.
+- **Retiro con validación por campo**: `RetiroUiState` + `RetiroErrores`, con el mismo patrón que Login/Registro.
+
+Todo se integró encima del CRUD real, Open-Meteo y el diseño verde de `main`; no se tocó el keystore ni el DN del certificado. El `id` remoto se busca por número + correo, sin migrar Room.
+
 ## Pruebas
 
-Además de las reglas de pedido, validaciones y cifrado, hay 49 pruebas de repositorios y ViewModel con MockK, Kotest y coroutines-test:
+Además de las reglas de pedido, validaciones y cifrado, hay 62 pruebas de repositorios y ViewModel con MockK, Kotest y coroutines-test. Las 13 nuevas cubren CF-13/RF-13/RF-14 (plazo de cancelación, cuenta regresiva, retiro con QR, errores por campo y los `PUT` remotos de cancelar/pagar/entregar):
 
 - `AuthRepositoryTest`: login/registro remotos, token y fallback local.
-- `PedidoRepositoryTest`: sincronización de menú, envío de pedidos, estados y el `PUT` de cambio de estado.
+- `PedidoRepositoryTest`: sincronización de menú, envío de pedidos, estados, `PUT` de cambio de estado, cancelación en plazo (y fuera de plazo), retiro pagado/entregado y caída sin red.
 - `ClimaRepositoryTest`: formato del dato de Open-Meteo y caída sin red.
 - `AuthViewModelTest`: validación de formularios y navegación.
 
@@ -165,11 +175,11 @@ gradlew.bat jacocoTestReportCore      # HTML + XML de la lógica
 gradlew.bat jacocoVerificar80         # falla si baja de 80% de líneas
 ```
 
-El reporte queda en `app/build/reports/jacoco/jacocoTestReportCore/`. La medición se enfoca en la lógica verificable con JUnit (repositorios, dominio y DTO): **83,3% de líneas**. La UI de Compose y el código generado por Room/DataStore se validan en emulador, por eso se excluyen de ese porcentaje; el reporte completo (`jacocoTestReportDebug`) también está disponible.
+El reporte queda en `app/build/reports/jacoco/jacocoTestReportCore/`. La medición se enfoca en la lógica verificable con JUnit (repositorios, dominio y DTO): **85,0% de líneas** (403/474). La UI de Compose y el código generado por Room/DataStore se validan en emulador, por eso se excluyen de ese porcentaje; el reporte completo (`jacocoTestReportDebug`) también está disponible.
 
 ## Limitaciones conocidas
 
 - Sin los microservicios levantados, la app funciona en modo local (caché).
 - No existe recuperación de contraseña.
 - El número de pedido es secuencial por dispositivo.
-- El cambio de estado ya se hace desde la app; el pago aún se administra desde los servicios/ERD (el QR de la app abre el enlace de pago, pero no llama a `PUT /api/pedidos/{id}/pagar`).
+- Cancelar y pagar/entregar requieren red: sin conexión la app no muta el estado, para que Room no se descuadre de Oracle. El plazo de 15 s se valida en la app; el microservicio no lo revalida.
