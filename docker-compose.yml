@@ -1,0 +1,49 @@
+# La Casa JoJo - microservicios que usa la app Android.
+#
+#   docker compose up -d --build     (levantar)
+#   docker compose logs -f ms-auth   (ver el código de recuperación en modo "log")
+#   docker compose down              (detener)
+#
+# Las credenciales se leen del .env de la raíz (ignorado por Git; ver .env.example).
+# El wallet de Oracle se monta desde la ruta TNS_ADMIN del .env como volumen de SOLO
+# LECTURA en /wallet; dentro del contenedor TNS_ADMIN apunta a /wallet.
+
+x-servicio-casajojo: &servicio
+  env_file: .env
+  restart: unless-stopped
+  volumes:
+    - type: bind
+      source: ${TNS_ADMIN:?Falta TNS_ADMIN en el .env (ruta del wallet de Oracle)}
+      target: /wallet
+      read_only: true
+
+services:
+  ms-auth:
+    <<: *servicio
+    build: ./microservicios mobil/casajojo-ms-auth
+    image: casajojo/ms-auth
+    container_name: casajojo-ms-auth
+    environment:
+      TNS_ADMIN: /wallet
+    ports:
+      - "8081:8081"
+
+  ms-catalogo:
+    <<: *servicio
+    build: ./microservicios mobil/casajojo-ms-catalogo
+    image: casajojo/ms-catalogo
+    container_name: casajojo-ms-catalogo
+    environment:
+      TNS_ADMIN: /wallet
+    ports:
+      - "8082:8082"
+
+  ms-ventas:
+    <<: *servicio
+    build: ./microservicios mobil/casajojo-ms-ventas
+    image: casajojo/ms-ventas
+    container_name: casajojo-ms-ventas
+    environment:
+      TNS_ADMIN: /wallet
+    ports:
+      - "8086:8086"

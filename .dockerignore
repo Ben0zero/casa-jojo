@@ -1,0 +1,14 @@
+# La Casa JoJo: cada microservicio se construye con su propia carpeta como contexto
+# (ver docker-compose.yml y microservicios mobil/*/.dockerignore). Este archivo evita
+# que un build desde la raíz envíe secretos, el wallet o carpetas pesadas.
+.env
+*.env
+**/OracleWallet/
+**/target/
+**/build/
+**/node_modules/
+**/.gradle/
+.git/
+.idea/
+casajojo-android/
+casajojo-web/

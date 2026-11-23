@@ -7,12 +7,13 @@ REQUISITO: crear .env en la raíz del repo con:
   ORACLE_USERNAME=...
   ORACLE_PASSWORD=...
   ORACLE_SERVICE=clases_high
-  TNS_ADMIN=C:/Users/ben95/.elvolcan/OracleWallet   (usar /, no \)
+  TNS_ADMIN=C:/ruta/a/tu/OracleWallet   (usar /, no \)
+  JWT_SECRET=...   (mínimo 32 caracteres; el MISMO para todos los servicios)
 
 El .env está ignorado por Git. Este script no imprime contraseñas.
 #>
 param(
-    [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),
+    [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,15 +33,17 @@ if (Test-Path $EnvFile) {
 $env:TNS_ADMIN = ($env:TNS_ADMIN -replace '\\', '/')
 if (-not $env:ORACLE_SERVICE) { $env:ORACLE_SERVICE = 'clases_high' }
 
-# La app Android no usa Eureka; lo desactivamos para una demo limpia.
-$env:EUREKA_CLIENT_REGISTER_WITH_EUREKA = 'false'
-$env:EUREKA_CLIENT_FETCH_REGISTRY = 'false'
+# Los servicios firman y validan los JWT con JWT_SECRET; sin él no arrancan.
+if (-not $env:JWT_SECRET -or $env:JWT_SECRET.Length -lt 32) {
+    throw "Falta JWT_SECRET en $EnvFile (mínimo 32 caracteres)."
+}
+
 
 $base = Join-Path $PSScriptRoot '..\microservicios mobil'
 $modulos = @(
-    @{ Nombre = 'auth     '; Ruta = 'MiniMarket-Proyecto-ms-auth'; Puerto = 8081 },
-    @{ Nombre = 'catalogo '; Ruta = 'MiniMarket-Proyecto-ms-catalogoProductos'; Puerto = 8082 },
-    @{ Nombre = 'ventas   '; Ruta = 'MiniMarket-Proyecto-ms-ventas'; Puerto = 8086 },
+    @{ Nombre = 'auth     '; Ruta = 'casajojo-ms-auth'; Puerto = 8081 },
+    @{ Nombre = 'catalogo '; Ruta = 'casajojo-ms-catalogo'; Puerto = 8082 },
+    @{ Nombre = 'ventas   '; Ruta = 'casajojo-ms-ventas'; Puerto = 8086 }
 )
 
 foreach ($modulo in $modulos) {

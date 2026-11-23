@@ -1,0 +1,12 @@
+# Solo se envía al build lo necesario (pom.xml y src). Nunca secretos ni el wallet.
+target/
+.mvn/
+mvnw
+mvnw.cmd
+.idea/
+.vscode/
+*.iml
+OracleWallet/
+.env
+*.env
+HELP.md

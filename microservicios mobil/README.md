@@ -1,84 +1,51 @@
-# Microservicios móviles — La Casa JoJo
+# Microservicios — La Casa JoJo
 
-Backend Java/Spring Boot consumido por la app Android (`../casajojo-android`). Se conservan los nombres originales de los módulos para no romper imports ni configuraciones; los adaptados al dominio de Casa JoJo son **auth**, **catalogoProductos** y **ventas**.
+Backend Java 21 / Spring Boot 4 que consume la app Android (`../casajojo-android`).
+Los datos viven en Oracle Cloud (conexión con wallet). La tabla de endpoints completa está
+en el [README principal](../README.md#endpoints).
 
-## Módulos
-
-| Módulo | Puerto | Estado | Rol |
-|---|---|---|---|
-| `MiniMarket-Proyecto-ms-eureka/eurekaserver` | 8761 | heredado | Registro de servicios |
-| `MiniMarket-Proyecto-ms-auth` | 8081 | **adaptado** | Login/registro por correo + JWT |
-| `MiniMarket-Proyecto-ms-catalogoProductos` | 8082 | **adaptado** | Menú `/api/menu` (SKU `CJ-*`) |
-| `MiniMarket-Proyecto-ms-produccion` | 8083 | heredado | Producción (dominio gas, se mantiene por compatibilidad) |
-| `MiniMarket-Proyecto-ms-inventario` | 8084 | heredado | Inventario (dominio gas, se mantiene por compatibilidad) |
-| `MiniMarket-Proyecto-ms-ventas` | 8086 | **adaptado** | Pedidos con hora de retiro, origen y estados |
-| `MiniMarket-Proyecto-main` | — | heredado | Configuración original del proyecto |
-
-Los módulos heredados no fueron reescritos: siguen siendo del template MiniMarket/gas. La app Android **no los consume**; solo usa los tres endpoints adaptados que se detallan abajo.
-
-## Endpoints usados por la app
-
-| Microservicio | Método y ruta | Descripción |
+| Módulo | Puerto | Responsabilidad |
 |---|---|---|
-| Auth | `POST /api/auth/login` | Recibe `{correo, password}`, devuelve datos del cliente y `token` JWT |
-| Auth | `POST /api/auth/register` | `{nombre, correo, telefono, password}` |
-| Catálogo | `GET /api/menu` | Platos `CJ-*` con `tipo` (`proteina`/`acompanamiento`), `precio` y `disponible` |
-| Catálogo | `GET /api/menu/{id}` | Un plato del menú |
-| Ventas | `POST /api/pedidos` | Pedido con `numero`, `correo`, `horaRetiro`, `origen`, `items` y `total` |
-| Ventas | `GET /api/pedidos/ultimo?correo=` | Último pedido para sincronizar estado |
-| Ventas | `GET /api/pedidos/mis-pedidos?correo=` | Historial del cliente |
-| Ventas | `PUT /api/pedidos/{id}/estado?estado=` | RECIBIDO → EN_PREPARACION → LISTO → ENTREGADO |
-| Ventas | `PUT /api/pedidos/{id}/pagar` | Marca `estadoPago = pagado` |
+| `casajojo-ms-auth` | 8081 | Registro/login por correo + JWT, recuperación de contraseña por código, perfil propio (`/api/usuarios/me`) |
+| `casajojo-ms-catalogo` | 8082 | Menú del día `/api/menu` (SKU `CJ-*`) y disponibilidad de platos |
+| `casajojo-ms-ventas` | 8086 | Pedidos: crear, listar, editar (RF-12), cancelar en 15 s, retiro con QR y operación de cocina |
 
-Los endpoints antiguos (`/api/productos`, `/api/ventas`, `/api/auth` con `username`) se conservaron para no romper a otros clientes.
+Paquetes Java: `cl.casajojo.auth`, `cl.casajojo.catalogo`, `cl.casajojo.ventas`.
 
 ## Ejecutar
 
-Requisitos: Java 21. Cada módulo trae su propio wrapper Maven.
+Con Docker, desde la raíz del repositorio: `docker compose up -d --build` (ver
+`docker-compose.yml`). Sin Docker: `scripts/demo-oracle.ps1` o `.\mvnw.cmd spring-boot:run`
+en cada módulo con las variables del `.env` cargadas.
 
-```powershell
-# 1) Registro (terminal aparte)
-cd MiniMarket-Proyecto-ms-eureka\eurekaserver
-.\mvnw.cmd spring-boot:run
+### Variables de entorno (`.env`, nunca versionado)
 
-# 2) Los tres servicios que usa la app, en otras terminales
-cd MiniMarket-Proyecto-ms-auth
-.\mvnw.cmd spring-boot:run
+| Variable | Obligatoria | Uso |
+|---|---|---|
+| `ORACLE_USERNAME`, `ORACLE_PASSWORD`, `ORACLE_SERVICE` | sí | Conexión a Oracle Cloud |
+| `TNS_ADMIN` | sí | Carpeta del wallet (con `/`). En Docker se monta en `/wallet` de solo lectura |
+| `JWT_SECRET` | sí | ≥ 32 caracteres, el mismo en los tres servicios (si falta, no arrancan) |
+| `RETIRO_CODIGO` | no | Código del QR de la tienda (por defecto `CASAJOJO-RETIRO`) |
+| `CORS_ORIGENES` | no | Orígenes web permitidos (por defecto `http://localhost:5173`) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | no | Envío del código de recuperación. Sin `SMTP_HOST`, ms-auth usa **modo log** (escribe el código en la consola) |
 
-cd MiniMarket-Proyecto-ms-catalogoProductos
-.\mvnw.cmd spring-boot:run
+Cuentas de demostración que siembra ms-auth: `cliente@casajojo.cl` / `Cliente123` y
+`cocina@casajojo.cl` / `Cocina123` (rol COCINA, para avanzar pedidos en la demo).
 
-cd MiniMarket-Proyecto-ms-ventas
-.\mvnw.cmd spring-boot:run
-```
+## Recuperación de contraseña (ms-auth)
 
-La app Android apunta por defecto a `http://10.0.2.2:<puerto>/` (emulador). Para un celular físico cambia `API_HOST` en `casajojo-android/app/build.gradle.kts` por la IP de la PC en la misma red.
-
-### Base de datos
-
-Los `application.properties` usan variables de entorno; no contienen contraseñas. **Los wallets no se incluyen en este repositorio**: hay que descargarlos/colocarlos localmente y configurar el entorno antes de iniciar los servicios:
-
-```powershell
-$env:TNS_ADMIN='C:/ruta/a/tu/OracleWallet'
-$env:ORACLE_PASSWORD='tu_password_oracle'
-# Opcionales (ya tienen valor por defecto):
-$env:ORACLE_USERNAME='ADMIN'
-$env:ORACLE_SERVICE='clases_high'
-```
-
-Si la base no está disponible, la app Android sigue funcionando con Room/DataStore como caché. El secreto JWT que aparece en el código heredado es de demostración: reemplázalo antes de usar estos servicios en producción.
+1. `POST /api/auth/recuperar {"correo"}` genera un código de 6 dígitos con `SecureRandom`,
+   guarda **solo su hash BCrypt** en `cj_codigos_recuperacion` con vencimiento de 15 minutos
+   e invalida los códigos anteriores. Responde lo mismo exista o no la cuenta.
+2. `POST /api/auth/restablecer {"correo","codigo","nuevaPassword"}` valida el código; tras 5
+   intentos fallidos o al usarse una vez, deja de servir.
 
 ## Pruebas
 
 ```powershell
-cd MiniMarket-Proyecto-ms-auth
-.\mvnw.cmd test -Dtest=AuthServiceTest
-
-cd MiniMarket-Proyecto-ms-catalogoProductos
-.\mvnw.cmd test -Dtest=MenuServiceImplTest
-
-cd MiniMarket-Proyecto-ms-ventas
-.\mvnw.cmd test -Dtest=PedidoCasaJojoServiceTest
+cd casajojo-ms-auth;     .\mvnw.cmd test -Dtest='!LoginAuthApplicationTests'
+cd casajojo-ms-catalogo; .\mvnw.cmd test -Dtest='!CatalogoproductosApplicationTests'
+cd casajojo-ms-ventas;   .\mvnw.cmd test -Dtest='!VentasApplicationTests'
 ```
 
-También se puede compilar cada módulo con `.\mvnw.cmd -DskipTests compile`. El test de carga de contexto de auth depende de credenciales Oracle válidas; si falla con `ORA-01017`, es un problema del entorno, no de la lógica adaptada.
+Los tests `*ApplicationTests` levantan el contexto completo y necesitan Oracle.
