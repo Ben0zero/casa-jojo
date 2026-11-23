@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.viewmodels
 
+import cl.duoc.casajojo.domain.model.FormaPago
 import cl.duoc.casajojo.domain.usecase.RetiroErrores
 
 /**
@@ -10,7 +11,7 @@ import cl.duoc.casajojo.domain.usecase.RetiroErrores
 data class RetiroUiState(
     val nombre: String = "",
     val horaRetiro: String = "13:00",
-    val formaPago: String = "Transferencia",
+    val formaPago: String = FormaPago.Transferencia.etiqueta,
     val indicaciones: String = "",
     val errores: RetiroErrores = RetiroErrores(),
     /** true después del primer "Confirmar pedido" (validación en tiempo real). */

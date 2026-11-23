@@ -7,21 +7,26 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,36 +38,58 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import cl.duoc.casajojo.ui.components.Aviso
 import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.ui.components.CampoTexto
 import cl.duoc.casajojo.ui.components.Titulo
+import cl.duoc.casajojo.ui.components.TituloBloque
 import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.theme.Ac
+import cl.duoc.casajojo.ui.viewmodels.PerfilViewModel
 
 /**
- * Perfil del cliente: misma cámara y mismo permiso de siempre, con un avatar
- * más vistoso y un espacio reservado para la foto cuando se decida el asset.
+ * Perfil del cliente.
+ * - Foto con la cámara (permiso CAMERA en tiempo de ejecución), como antes.
+ * - EFT: CRUD de la cuenta contra ms-auth: ver y editar nombre/teléfono, cambiar la
+ *   contraseña y eliminar la cuenta con diálogo de confirmación. El estado y las
+ *   validaciones viven en PerfilViewModel (domain/ValidacionesPerfil).
  */
 @Composable
 fun ViewPerfil(
+    vm: PerfilViewModel,
     foto: Bitmap?,
     onFotoCambiada: (Bitmap) -> Unit,
     onVolver: () -> Unit,
+    onCuentaEliminada: () -> Unit,
 ) {
     val context = LocalContext.current
-    var mensaje by remember { mutableStateOf<String?>(null) }
+    val foco = LocalFocusManager.current
+    val estado by vm.estado.collectAsState()
+    var mensajeFoto by remember { mutableStateOf<String?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(estado.mensaje) {
+        estado.mensaje?.let {
+            snackbar.showSnackbar(it)
+            vm.limpiarMensaje()
+        }
+    }
 
     val camara = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicturePreview(),
     ) { imagen ->
         if (imagen != null) {
             onFotoCambiada(imagen)
-            mensaje = "Foto de perfil actualizada"
+            mensajeFoto = "Foto de perfil actualizada"
         }
     }
 
@@ -72,7 +99,7 @@ fun ViewPerfil(
         if (concedido) {
             camara.launch(null)
         } else {
-            mensaje = "Necesitamos permiso para usar la cámara"
+            mensajeFoto = "Necesitamos permiso para usar la cámara"
         }
     }
 
@@ -85,74 +112,186 @@ fun ViewPerfil(
         }
     }
 
-    Pantalla {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Volver(onVolver)
-            Spacer(Modifier.height(18.dp))
-            Titulo("Mi perfil", "Personaliza tu cuenta en La Casa JoJo")
-            Spacer(Modifier.height(28.dp))
+    Box(Modifier.fillMaxSize()) {
+        Pantalla {
+            Column(Modifier.fillMaxWidth()) {
+                Volver(onVolver)
+                Spacer(Modifier.height(18.dp))
+                Titulo("Mi perfil", "Personaliza tu cuenta en La Casa JoJo")
+                Spacer(Modifier.height(20.dp))
 
-            Surface(
-                shape = CircleShape,
-                shadowElevation = 6.dp,
-                border = androidx.compose.foundation.BorderStroke(
-                    3.dp,
-                    Brush.horizontalGradient(listOf(Ac, Color(0xFFFFC83D))),
-                ),
-            ) {
-                if (foto == null) {
-                    Box(
-                        modifier = Modifier
-                            .size(160.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFFE8F5EA), Color(0xFFD3EAD8)),
-                                ),
-                            ),
-                        contentAlignment = Alignment.Center,
+                // ---------- Foto (recurso nativo: cámara) ----------
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        shadowElevation = 6.dp,
+                        border = androidx.compose.foundation.BorderStroke(
+                            3.dp,
+                            Brush.horizontalGradient(listOf(Ac, Color(0xFFFFC83D))),
+                        ),
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("📷", fontSize = 34.sp)
-                            Text(
-                                "Espacio para tu foto",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF9E6250),
+                        if (foto == null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(140.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(listOf(Color(0xFFE8F5EA), Color(0xFFD3EAD8))),
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("📷", fontSize = 30.sp)
+                                    Text(
+                                        "Espacio para tu foto",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF9E6250),
+                                    )
+                                }
+                            }
+                        } else {
+                            Image(
+                                bitmap = foto.asImageBitmap(),
+                                contentDescription = "Foto de perfil",
+                                modifier = Modifier.size(140.dp).clip(CircleShape),
                             )
                         }
                     }
-                } else {
-                    Image(
-                        bitmap = foto.asImageBitmap(),
-                        contentDescription = "Foto de perfil",
-                        modifier = Modifier.size(160.dp).clip(CircleShape),
+                    Spacer(Modifier.height(12.dp))
+                    Badge(estado.correo.ifBlank { "Mi cuenta Casa JoJo" })
+                    Spacer(Modifier.height(16.dp))
+                    Boton("📸  Tomar foto con la cámara", onClick = ::abrirCamara, estilo = "fantasma")
+                    Aviso(mensajeFoto, esError = mensajeFoto?.startsWith("Necesitamos") == true)
+                }
+
+                // ---------- Mis datos (READ + UPDATE) ----------
+                Tarjeta {
+                    TituloBloque("👤", "Mis datos")
+                    CampoTexto(
+                        etiqueta = "Nombre",
+                        valor = estado.nombre,
+                        onCambio = vm::onNombre,
+                        error = estado.erroresDatos.nombre,
+                        placeholder = "Nombre y apellido",
+                        enabled = !estado.guardandoDatos,
+                        icono = "👤",
+                    )
+                    CampoTexto(
+                        etiqueta = "Celular",
+                        valor = estado.telefono,
+                        onCambio = vm::onTelefono,
+                        error = estado.erroresDatos.telefono,
+                        placeholder = "9 1234 5678",
+                        tipoTeclado = KeyboardType.Phone,
+                        accionIme = ImeAction.Done,
+                        enabled = !estado.guardandoDatos,
+                        onListo = { foco.clearFocus(); vm.guardarDatos() },
+                        icono = "📱",
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Boton(
+                        texto = if (estado.guardandoDatos) "Guardando…" else "💾  Guardar mis datos",
+                        onClick = { foco.clearFocus(); vm.guardarDatos() },
+                        estilo = "acento",
+                        enabled = !estado.guardandoDatos,
                     )
                 }
-            }
 
-            Spacer(Modifier.height(16.dp))
-            Badge("Mi cuenta Casa JoJo")
-            Spacer(Modifier.height(28.dp))
+                // ---------- Cambiar contraseña (UPDATE) ----------
+                Tarjeta {
+                    TituloBloque("🔑", "Cambiar contraseña")
+                    CampoTexto(
+                        etiqueta = "Contraseña actual",
+                        valor = estado.actual,
+                        onCambio = vm::onActual,
+                        error = estado.erroresPassword.actual,
+                        esContrasena = true,
+                        enabled = !estado.guardandoPassword,
+                        icono = "🔒",
+                    )
+                    CampoTexto(
+                        etiqueta = "Nueva contraseña",
+                        valor = estado.nueva,
+                        onCambio = vm::onNueva,
+                        error = estado.erroresPassword.nueva,
+                        placeholder = "Mínimo 6, con letras y números",
+                        esContrasena = true,
+                        enabled = !estado.guardandoPassword,
+                        icono = "🔑",
+                    )
+                    CampoTexto(
+                        etiqueta = "Repite la nueva contraseña",
+                        valor = estado.confirmar,
+                        onCambio = vm::onConfirmar,
+                        error = estado.erroresPassword.confirmar,
+                        esContrasena = true,
+                        accionIme = ImeAction.Done,
+                        enabled = !estado.guardandoPassword,
+                        onListo = { foco.clearFocus(); vm.cambiarPassword() },
+                        icono = "🔑",
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Boton(
+                        texto = if (estado.guardandoPassword) "Actualizando…" else "Actualizar contraseña",
+                        onClick = { foco.clearFocus(); vm.cambiarPassword() },
+                        enabled = !estado.guardandoPassword,
+                    )
+                }
 
-            Boton("📸  Tomar foto con la cámara", onClick = ::abrirCamara)
-            if (mensaje != null) {
-                Spacer(Modifier.height(12.dp))
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                ) {
+                // ---------- Eliminar cuenta (DELETE) ----------
+                Tarjeta {
+                    TituloBloque("🗑️", "Eliminar cuenta")
                     Text(
-                        mensaje!!,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        "Se borrará tu cuenta del servidor y de este teléfono, junto con tu historial local.",
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Boton(
+                        texto = if (estado.eliminando) "Eliminando…" else "Eliminar mi cuenta",
+                        onClick = vm::pedirEliminar,
+                        estilo = "fantasma",
+                        enabled = !estado.eliminando,
                     )
                 }
             }
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
+
+    if (estado.confirmandoEliminar) {
+        AlertDialog(
+            onDismissRequest = vm::cancelarEliminar,
+            icon = { Text("⚠️", fontSize = 28.sp) },
+            title = { Text("¿Eliminar tu cuenta?") },
+            text = {
+                Text("Esta acción no se puede deshacer. Perderás tu sesión y tu historial en este teléfono.")
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.eliminarCuenta(onCuentaEliminada) }) {
+                    Text("Sí, eliminar", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::cancelarEliminar) { Text("Cancelar") }
+            },
+        )
+    }
+}
+
+/** Tarjeta blanca con sombra para cada sección del Perfil. */
+@Composable
+private fun Tarjeta(contenido: @Composable () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 3.dp,
+        modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) { contenido() }
     }
 }

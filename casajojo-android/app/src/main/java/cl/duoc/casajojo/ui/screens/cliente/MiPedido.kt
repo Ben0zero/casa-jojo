@@ -1,7 +1,6 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
-import android.content.Intent
-import android.net.Uri
+import cl.duoc.casajojo.domain.model.FormaPago
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +38,11 @@ import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.ui.layouts.BarraSuperior
 import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.Boton
+import cl.duoc.casajojo.domain.usecase.QrRetiro
+import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import cl.duoc.casajojo.ui.components.CancelarPedido
+import cl.duoc.casajojo.ui.components.EditarPedidoDialogo
+import cl.duoc.casajojo.ui.components.ErrorEcho
 import cl.duoc.casajojo.ui.components.FotoPlaceholder
 import cl.duoc.casajojo.ui.components.MSG_FUERA_DE_PLAZO
 import cl.duoc.casajojo.ui.components.MSG_PEDIDO_CANCELADO
@@ -123,22 +126,21 @@ fun ViewMiPedido(
                         },
                         onFueraDePlazo = { avisar(MSG_FUERA_DE_PLAZO) },
                     )
-                    Spacer(Modifier.height(12.dp))
-
-                    // EA3 / IE 3.1.3: CRUD real. El botón escribe en ms-ventas
-                    // (Oracle) y la respuesta actualiza Room + la pantalla.
-                    val estado = actual.pedido.estadoPedido
-                    if (estado !in setOf("listo", "entregado", "cancelado")) {
+                    // EFT / RF-12: editar los datos del retiro mientras siga RECIBIDO.
+                    if (ReglasPedido.puedeEditar(actual.pedido.estadoPedido)) {
+                        Spacer(Modifier.height(10.dp))
                         Boton(
-                            if (vm.cambiandoEstado) "Actualizando…" else "Marcar listo para retiro",
-                            onClick = { vm.marcarListoParaRetiro() },
-                            estilo = "acento",
+                            "✏️  Editar pedido",
+                            onClick = { vm.abrirEdicion(actual.pedido) },
+                            estilo = "fantasma",
                         )
                     }
-                    vm.mensajeEstado?.let { mensaje ->
-                        Spacer(Modifier.height(8.dp))
-                        Text(mensaje, color = Ac, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Spacer(Modifier.height(12.dp))
+
+                    // M10: el cliente ya NO puede marcar su pedido como "listo": ese
+                    // cambio le corresponde a la cocina. Aquí solo se muestra el estado,
+                    // que se sincroniza desde ms-ventas al abrir la pantalla.
+                    val estado = actual.pedido.estadoPedido
 
                     Text(
                         "Estado: ${textoEstadoPedido(estado)} · Pago: ${textoEstadoPago(actual.pedido.estadoPago)}. " +
@@ -154,6 +156,22 @@ fun ViewMiPedido(
         }
     }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+
+    // EFT: errores del retiro con QR o de la edición (mensajes de CasaJojoException).
+    ErrorEcho(vm.error) { vm.limpiarError() }
+
+    if (vm.edicion.abierta) {
+        EditarPedidoDialogo(
+            estado = vm.edicion,
+            formasPago = FORMAS_PAGO,
+            onNombre = vm::onEdicionNombre,
+            onHora = vm::onEdicionHora,
+            onFormaPago = vm::onEdicionFormaPago,
+            onIndicaciones = vm::onEdicionIndicaciones,
+            onGuardar = { vm.guardarEdicion(::avisar) },
+            onCerrar = vm::cerrarEdicion,
+        )
     }
 }
 
@@ -208,7 +226,11 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
                 Spacer(Modifier.height(20.dp))
                 LineaEstado(p.estadoPedido)
 
-                if (p.formaPago == "Pagar en tienda" && p.estadoPago == "pendiente") {
+                // M12: el retiro con QR ya no depende de la forma de pago. Antes un pedido
+                // con "Transferencia" nunca podía marcarse entregado desde la app.
+                // EFT (POO): la forma de pago sabe si se paga al retirar.
+                val pagaEnTienda = FormaPago.desde(p.formaPago).pagaAlRetirar() && p.estadoPago == "pendiente"
+                if (ReglasPedido.puedeRetirarConQr(p.estadoPedido) || pagaEnTienda) {
                     Spacer(Modifier.height(4.dp))
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -217,35 +239,43 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Text(
-                                "Pago pendiente: puedes pagar al retirar usando el QR de la tienda.",
+                                if (ReglasPedido.puedeRetirarConQr(p.estadoPedido) && pagaEnTienda) {
+                                    "Tu pedido está listo: escanea el QR de la tienda para pagar y retirar."
+                                } else if (ReglasPedido.puedeRetirarConQr(p.estadoPedido)) {
+                                    "Tu pedido está listo: escanea el QR de la tienda al retirarlo."
+                                } else {
+                                    "Pago pendiente: podrás escanear el QR de la tienda cuando tu pedido esté listo."
+                                },
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontSize = 13.sp,
                             )
-                            Spacer(Modifier.height(10.dp))
-                            Boton(
-                                "Escanear QR para pagar",
-                                onClick = {
-                                    errorQr = null
-                                    GmsBarcodeScanning.getClient(context)
-                                        .startScan()
-                                        .addOnSuccessListener { resultado ->
-                                            val valor = resultado.rawValue.orEmpty()
-                                            val enlace = runCatching { Uri.parse(valor) }.getOrNull()
-                                            if (enlace?.scheme == "https" && !enlace.host.isNullOrBlank()) {
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, enlace))
-                                                // RF-14: al pagar con QR, el pedido queda entregado
-                                                // y pasa al Historial (Room actualiza la lista sola).
-                                                vm.registrarRetiro(p)
-                                            } else {
-                                                errorQr = "El QR no contiene un enlace web de pago"
+                            // Fase 2: el retiro solo procede con el pedido LISTO (regla del servidor).
+                            if (ReglasPedido.puedeRetirarConQr(p.estadoPedido)) {
+                                Spacer(Modifier.height(10.dp))
+                                Boton(
+                                    if (pagaEnTienda) "Escanear QR para pagar" else "Escanear QR de retiro",
+                                    onClick = {
+                                        errorQr = null
+                                        GmsBarcodeScanning.getClient(context)
+                                            .startScan()
+                                            .addOnSuccessListener { resultado ->
+                                                val valor = resultado.rawValue
+                                                // A5: ya NO se abre ninguna URL. Solo se acepta el QR propio
+                                                // de la tienda (casajojo://retiro?codigo=...); el servidor
+                                                // valida el código y deja el pedido pagado y entregado.
+                                                if (QrRetiro.codigo(valor) != null) {
+                                                    vm.registrarRetiro(p, valor)
+                                                } else {
+                                                    errorQr = "Este QR no es de La Casa JoJo"
+                                                }
                                             }
-                                        }
-                                        .addOnFailureListener {
-                                            errorQr = "No se pudo leer el código QR"
-                                        }
-                                },
-                                estilo = "fantasma",
-                            )
+                                            .addOnFailureListener {
+                                                errorQr = "No se pudo leer el código QR"
+                                            }
+                                    },
+                                    estilo = "fantasma",
+                                )
+                            }
                             errorQr?.let {
                                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                             }

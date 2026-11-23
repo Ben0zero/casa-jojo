@@ -2,7 +2,9 @@ package cl.duoc.casajojo.ui.viewmodels
 
 import cl.duoc.casajojo.data.local.entity.Usuario
 import cl.duoc.casajojo.domain.usecase.LoginErrores
+import cl.duoc.casajojo.domain.usecase.RecuperarErrores
 import cl.duoc.casajojo.domain.usecase.RegistroErrores
+import cl.duoc.casajojo.domain.usecase.RestablecerErrores
 
 /**
  * "Fichas" de estado de cada formulario (patrón de la guía formulario-registro):
@@ -45,3 +47,22 @@ sealed class EstadoSesion {
     data class Activa(val usuario: Usuario) : EstadoSesion()
     data object Inactiva : EstadoSesion()
 }
+/** EFT: pasos de "¿Olvidaste tu contraseña?". */
+enum class PasoRecuperacion { CORREO, CODIGO }
+
+/**
+ * EFT: ficha de la recuperación de contraseña (correo → código → nueva contraseña).
+ * Mismo patrón que LoginUiState: datos, errores por campo, carga y aviso juntos.
+ */
+data class RecuperarUiState(
+    val paso: PasoRecuperacion = PasoRecuperacion.CORREO,
+    val correo: String = "",
+    val codigo: String = "",
+    val password: String = "",
+    val confirmar: String = "",
+    val erroresCorreo: RecuperarErrores = RecuperarErrores(),
+    val errores: RestablecerErrores = RestablecerErrores(),
+    val cargando: Boolean = false,
+    /** Aviso para el Snackbar (se muestra una vez). */
+    val mensaje: String? = null,
+)

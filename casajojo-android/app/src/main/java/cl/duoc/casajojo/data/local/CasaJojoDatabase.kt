@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.withTransaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import cl.duoc.casajojo.data.local.dao.PedidoDao
@@ -23,10 +24,12 @@ import kotlinx.coroutines.launch
  * Base de datos local (Room).
  * Versión 1: productos, pedidos, platos.
  * Versión 2: + tabla usuarios y columna pedidos.usuarioId (login).
+ * Versión 3: + columnas pedidos.remotoId y pedidos.referencia (A4 / M9: envío
+ *            pendiente y vínculo con ms-ventas sin depender del número).
  */
 @Database(
     entities = [Producto::class, Pedido::class, Plato::class, Usuario::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -67,6 +70,18 @@ abstract class CasaJojoDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * MIGRACIÓN 2 → 3 (A4 / M9). Los pedidos existentes quedan con remotoId NULL y
+         * referencia vacía: se vinculan con el servidor por número solo esa vez (pedidos
+         * antiguos); los nuevos usan su referencia (UUID).
+         */
+        val MIGRACION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `remotoId` INTEGER")
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `referencia` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): CasaJojoDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -74,7 +89,7 @@ abstract class CasaJojoDatabase : RoomDatabase() {
                     CasaJojoDatabase::class.java,
                     "casa_jojo.db",
                 )
-                    .addMigrations(MIGRACION_1_2)
+                    .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
                     // Siembra el menú solo la primera vez que se crea la base.
                     .addCallback(SembrarMenu)
                     .build()
@@ -88,9 +103,15 @@ abstract class CasaJojoDatabase : RoomDatabase() {
                 // onCreate corre durante la primera consulta, cuando INSTANCE ya
                 // está asignada; por eso podemos usar sus DAO.
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                    val dao = INSTANCE?.productoDao() ?: return@launch
-                    if (dao.count() == 0) {
-                        dao.insertAll(MenuSeed.menu())
+                    val base = INSTANCE ?: return@launch
+                    val dao = base.productoDao()
+                    // B6: revisar y sembrar dentro de una transacción. La sincronización
+                    // del menú también usa una, así que no se pueden intercalar y el menú
+                    // ya no queda duplicado en la primera instalación.
+                    base.withTransaction {
+                        if (dao.count() == 0) {
+                            dao.insertAll(MenuSeed.menu())
+                        }
                     }
                 }
             }

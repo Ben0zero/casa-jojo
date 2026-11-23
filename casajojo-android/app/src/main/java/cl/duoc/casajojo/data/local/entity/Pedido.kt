@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -21,6 +22,13 @@ data class Pedido(
     // Es "Long?" (puede ser null) porque los pedidos creados antes del login
     // no tienen dueño. Así "Mi pedido" muestra solo los pedidos de quien inició sesión.
     val usuarioId: Long? = null,
+    // NUEVO (base de datos v3, A4 / M9): id del pedido en ms-ventas (Oracle).
+    // null = el pedido todavía no llega al servidor (pendiente de envío).
+    val remotoId: Long? = null,
+    // NUEVO (v3): UUID que identifica el pedido en la app y en el servidor; evita
+    // duplicados al reenviar y reemplaza la búsqueda por número. "" en pedidos antiguos.
+    @ColumnInfo(defaultValue = "")
+    val referencia: String = "",
 )
 
 data class PedidoWithPlatos(

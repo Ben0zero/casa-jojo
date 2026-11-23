@@ -12,6 +12,8 @@ sealed class AppRoutes(val route: String) {
     // Sesión
     data object Login : AppRoutes("login")
     data object Registro : AppRoutes("registro")
+    // EFT: "¿Olvidaste tu contraseña?"
+    data object RecuperarPassword : AppRoutes("recuperar_password")
 
     // Flujo del cliente
     data object Home : AppRoutes("home")

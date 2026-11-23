@@ -7,7 +7,11 @@ import cl.duoc.casajojo.data.local.CasaJojoDatabase
 import cl.duoc.casajojo.data.local.SesionPreferences
 import cl.duoc.casajojo.data.repository.AuthRepository
 import cl.duoc.casajojo.data.repository.ResultadoAuth
+import cl.duoc.casajojo.domain.error.CasaJojoException
+import cl.duoc.casajojo.domain.error.ValidacionException
+import cl.duoc.casajojo.domain.usecase.RestablecerErrores
 import cl.duoc.casajojo.domain.usecase.ValidacionesAuth
+import cl.duoc.casajojo.domain.usecase.ValidacionesPerfil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -150,6 +154,101 @@ class AuthViewModel @JvmOverloads constructor(
     }
 
     fun limpiarMensajeRegistro() = _registro.update { it.copy(mensaje = null) }
+
+    // ---------------- EFT: ¿OLVIDASTE TU CONTRASEÑA? ----------------
+
+    private val _recuperar = MutableStateFlow(RecuperarUiState())
+    val recuperar: StateFlow<RecuperarUiState> = _recuperar.asStateFlow()
+
+    /** Abre el flujo desde el login, con el correo que ya estaba escrito. */
+    fun abrirRecuperacion() {
+        _recuperar.value = RecuperarUiState(correo = _login.value.correo)
+    }
+
+    fun onRecuperarCorreo(v: String) =
+        _recuperar.update { it.copy(correo = v, erroresCorreo = it.erroresCorreo.copy(correo = null)) }
+
+    fun onRecuperarCodigo(v: String) =
+        _recuperar.update {
+            // Solo dígitos y como máximo 6: el teclado numérico igual permite pegar texto.
+            it.copy(codigo = v.filter(Char::isDigit).take(ValidacionesPerfil.LARGO_CODIGO),
+                errores = it.errores.copy(codigo = null))
+        }
+
+    fun onRecuperarPassword(v: String) =
+        _recuperar.update { it.copy(password = v, errores = it.errores.copy(password = null)) }
+
+    fun onRecuperarConfirmar(v: String) =
+        _recuperar.update { it.copy(confirmar = v, errores = it.errores.copy(confirmar = null)) }
+
+    /** Paso 1 → 2: valida el correo y pide a ms-auth que envíe el código. */
+    fun enviarCodigo() {
+        val a = _recuperar.value
+        if (a.cargando) return
+        val errores = ValidacionesPerfil.validarRecuperar(a.correo)
+        if (errores.hayErrores) {
+            _recuperar.update { it.copy(erroresCorreo = errores, mensaje = "Revisa el correo") }
+            return
+        }
+        viewModelScope.launch {
+            _recuperar.update { it.copy(cargando = true) }
+            repo.solicitarRecuperacion(a.correo).fold(
+                onSuccess = { texto ->
+                    _recuperar.update {
+                        it.copy(cargando = false, paso = PasoRecuperacion.CODIGO, mensaje = texto)
+                    }
+                },
+                onFailure = { e -> _recuperar.update { it.copy(cargando = false, mensaje = mensajeDe(e)) } },
+            )
+        }
+    }
+
+    /** Paso 2: valida código y contraseña; si ms-auth acepta, vuelve al login con el correo listo. */
+    fun restablecerPassword(onExito: () -> Unit) {
+        val a = _recuperar.value
+        if (a.cargando) return
+        val errores = ValidacionesPerfil.validarRestablecer(a.codigo, a.password, a.confirmar)
+        if (errores.hayErrores) {
+            _recuperar.update { it.copy(errores = errores, mensaje = "Revisa los campos marcados") }
+            return
+        }
+        viewModelScope.launch {
+            _recuperar.update { it.copy(cargando = true) }
+            repo.restablecerPassword(a.correo, a.codigo, a.password).fold(
+                onSuccess = { texto ->
+                    _recuperar.value = RecuperarUiState()
+                    _login.update {
+                        LoginUiState(correo = ValidacionesAuth.normalizarCorreo(a.correo), mensaje = texto)
+                    }
+                    onExito()
+                },
+                onFailure = { e ->
+                    val mensaje = mensajeDe(e)
+                    _recuperar.update {
+                        it.copy(
+                            cargando = false,
+                            mensaje = mensaje,
+                            // Un código malo se marca bajo su campo.
+                            errores = if ((e as? ValidacionException)?.campo == "codigo") {
+                                it.errores.copy(codigo = mensaje)
+                            } else {
+                                it.errores
+                            },
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    /** Volver al paso 1 (por ejemplo, para corregir el correo o pedir otro código). */
+    fun volverAPedirCodigo() =
+        _recuperar.update { it.copy(paso = PasoRecuperacion.CORREO, codigo = "", errores = RestablecerErrores()) }
+
+    fun limpiarMensajeRecuperar() = _recuperar.update { it.copy(mensaje = null) }
+
+    private fun mensajeDe(e: Throwable): String =
+        (e as? CasaJojoException)?.mensajeUsuario ?: "Ocurrió un error. Intenta de nuevo."
 
     // ---------------- SESIÓN ----------------
 

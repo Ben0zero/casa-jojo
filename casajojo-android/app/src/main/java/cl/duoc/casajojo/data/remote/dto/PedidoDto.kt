@@ -19,6 +19,8 @@ data class PedidoRequestDto(
     val indicaciones: String,
     val items: List<PedidoItemRequestDto>,
     val total: Int,
+    /** M9 / A4: UUID del pedido; ms-ventas no duplica un pedido reenviado con la misma referencia. */
+    val referencia: String? = null,
 )
 
 data class PedidoItemResponseDto(
@@ -43,4 +45,13 @@ data class PedidoResponseDto(
     val total: Int? = null,
     val fechaCreacion: String? = null,
     val items: List<PedidoItemResponseDto>? = null,
+    val referencia: String? = null,
+)
+
+/** EFT / RF-12: datos del retiro editables mientras el pedido sigue RECIBIDO. */
+data class PedidoEdicionDto(
+    val nombre: String,
+    val horaRetiro: String,
+    val formaPago: String,
+    val indicaciones: String,
 )

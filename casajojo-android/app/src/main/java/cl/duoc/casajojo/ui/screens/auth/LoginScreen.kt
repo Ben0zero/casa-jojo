@@ -51,6 +51,7 @@ fun LoginScreen(
     vm: AuthViewModel,
     onIngresar: () -> Unit,
     onIrRegistro: () -> Unit,
+    onOlvide: () -> Unit,
 ) {
     val estado by vm.login.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -134,6 +135,7 @@ fun LoginScreen(
                             placeholder = "nombre@correo.cl",
                             tipoTeclado = KeyboardType.Email,
                             enabled = !estado.cargando,
+                            icono = "✉️",
                         )
                         CampoTexto(
                             etiqueta = "Contraseña",
@@ -144,8 +146,20 @@ fun LoginScreen(
                             accionIme = ImeAction.Done,
                             enabled = !estado.cargando,
                             onListo = enviar,
+                            icono = "🔒",
                         )
-                        Spacer(Modifier.height(20.dp))
+                        // EFT: recuperación de contraseña (correo → código → nueva contraseña).
+                        Text(
+                            "¿Olvidaste tu contraseña?",
+                            color = Ac,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .clickable(enabled = !estado.cargando, onClick = onOlvide)
+                                .padding(vertical = 8.dp),
+                        )
+                        Spacer(Modifier.height(12.dp))
                         Boton(
                             texto = if (estado.cargando) "Ingresando…" else "Ingresar",
                             onClick = enviar,

@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.components
 
+import cl.duoc.casajojo.domain.model.EstadoPedido
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -249,13 +250,8 @@ fun LineaEstado(estado: String) {
         "Listo" to "Ya puedes retirar",
         "Entregado" to "¡Buen provecho!",
     )
-    val actual = when {
-        estado.contains("entregad", ignoreCase = true) -> 3
-        estado.contains("listo", ignoreCase = true) -> 2
-        estado.contains("prepar", ignoreCase = true) -> 1
-        estado.contains("cancel", ignoreCase = true) -> -1
-        else -> 0
-    }
+    // EFT (POO): cada EstadoPedido conoce su posición en la línea.
+    val actual = EstadoPedido.desdeOrNull(estado)?.paso ?: 0
 
     Column {
         pasos.forEachIndexed { i, (titulo, detalle) ->

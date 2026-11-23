@@ -3,6 +3,8 @@ package cl.duoc.casajojo.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duoc.casajojo.data.repository.ClimaRepository
+import cl.duoc.casajojo.domain.error.CasaJojoException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +15,8 @@ data class ClimaUiState(
     val texto: String? = null,
     val cargando: Boolean = false,
     val fallo: Boolean = false,
+    /** EFT: mensaje claro del error (CasaJojoException) para mostrar junto a "Reintentar". */
+    val error: String? = null,
 )
 
 class ClimaViewModel(
@@ -20,18 +24,26 @@ class ClimaViewModel(
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(ClimaUiState(cargando = true))
+    private var trabajo: Job? = null
     val estado: StateFlow<ClimaUiState> = _estado.asStateFlow()
 
     init {
         cargar()
     }
 
+    /** Carga (o reintenta) el clima. Ignora toques repetidos mientras ya está cargando. */
     fun cargar() {
-        viewModelScope.launch {
+        if (trabajo?.isActive == true) return
+        trabajo = viewModelScope.launch {
             _estado.value = ClimaUiState(cargando = true)
             _estado.value = repo.climaActual().fold(
                 onSuccess = { ClimaUiState(texto = it) },
-                onFailure = { ClimaUiState(fallo = true) },
+                onFailure = { e ->
+                    ClimaUiState(
+                        fallo = true,
+                        error = (e as? CasaJojoException)?.mensajeUsuario ?: "Sin conexión con el clima",
+                    )
+                },
             )
         }
     }

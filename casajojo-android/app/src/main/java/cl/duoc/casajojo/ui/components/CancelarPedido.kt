@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.components
 
+import cl.duoc.casajojo.domain.model.EstadoPedido
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -100,7 +101,7 @@ fun CancelarPedido(
             }
         }
         AnimatedVisibility(
-            visible = !puede && mostroBoton && pedido.estadoPedido == "recibido",
+            visible = !puede && mostroBoton && pedido.estadoPedido == EstadoPedido.Recibido.codigo,
             enter = fadeIn(tween(300)) + expandVertically(tween(300)),
         ) {
             Text(

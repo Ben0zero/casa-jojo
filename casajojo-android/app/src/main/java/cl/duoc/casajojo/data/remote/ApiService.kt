@@ -1,13 +1,21 @@
 package cl.duoc.casajojo.data.remote
 
+import cl.duoc.casajojo.data.remote.dto.ActualizarPerfilDto
+import cl.duoc.casajojo.data.remote.dto.CambiarPasswordDto
 import cl.duoc.casajojo.data.remote.dto.ClimaDto
 import cl.duoc.casajojo.data.remote.dto.LoginRequestDto
+import cl.duoc.casajojo.data.remote.dto.MensajeDto
+import cl.duoc.casajojo.data.remote.dto.PedidoEdicionDto
+import cl.duoc.casajojo.data.remote.dto.RecuperarRequestDto
+import cl.duoc.casajojo.data.remote.dto.RestablecerRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoResponseDto
 import cl.duoc.casajojo.data.remote.dto.PlatoMenuDto
 import cl.duoc.casajojo.data.remote.dto.RegistroRequestDto
 import cl.duoc.casajojo.data.remote.dto.UsuarioResponseDto
+import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -25,6 +33,29 @@ interface AuthApi {
 
     @POST("api/auth/register")
     suspend fun registrar(@Body request: RegistroRequestDto): UsuarioResponseDto
+
+    /** EFT: envía al correo un código de 6 dígitos (un solo uso, vence en 15 min). */
+    @POST("api/auth/recuperar")
+    suspend fun recuperar(@Body request: RecuperarRequestDto): MensajeDto
+
+    /** EFT: cambia la contraseña con el código recibido por correo. */
+    @POST("api/auth/restablecer")
+    suspend fun restablecer(@Body request: RestablecerRequestDto): MensajeDto
+
+    // ---- EFT: CRUD del perfil propio. El correo sale del JWT (AuthInterceptor). ----
+
+    @GET("api/usuarios/me")
+    suspend fun perfil(): UsuarioResponseDto
+
+    @PUT("api/usuarios/me")
+    suspend fun actualizarPerfil(@Body request: ActualizarPerfilDto): UsuarioResponseDto
+
+    @PUT("api/usuarios/me/password")
+    suspend fun cambiarPassword(@Body request: CambiarPasswordDto): MensajeDto
+
+    /** 204 sin cuerpo: por eso se usa Response<Unit>. */
+    @DELETE("api/usuarios/me")
+    suspend fun eliminarCuenta(): Response<Unit>
 }
 
 interface MenuApi {
@@ -42,15 +73,29 @@ interface PedidoApi {
     @GET("api/pedidos/ultimo")
     suspend fun ultimo(@Query("correo") correo: String): PedidoResponseDto
 
+    /** EFT / RF-12: editar los datos del retiro mientras el pedido siga RECIBIDO. */
+    @PUT("api/pedidos/{id}")
+    suspend fun editar(
+        @Path("id") id: Long,
+        @Body request: PedidoEdicionDto,
+    ): PedidoResponseDto
+
     @PUT("api/pedidos/{id}/estado")
     suspend fun cambiarEstado(
         @Path("id") id: Long,
         @Query("estado") estado: String,
     ): PedidoResponseDto
 
-    /** RF-14: el QR de retiro marca el pago como pagado en ms-ventas/Oracle. */
-    @PUT("api/pedidos/{id}/pagar")
-    suspend fun pagar(@Path("id") id: Long): PedidoResponseDto
+    /**
+     * RF-14 / A5: retiro con el QR de la tienda. El servidor valida el código del QR
+     * y, si el pedido está LISTO, lo deja pagado y ENTREGADO en un solo paso.
+     * (El antiguo PUT /pagar ahora es solo para la caja: rol COCINA o ADMIN.)
+     */
+    @PUT("api/pedidos/{id}/retirar")
+    suspend fun retirar(
+        @Path("id") id: Long,
+        @Query("codigo") codigo: String,
+    ): PedidoResponseDto
 }
 
 /** API externa: Open-Meteo. Base URL distinta, sin autenticación. */

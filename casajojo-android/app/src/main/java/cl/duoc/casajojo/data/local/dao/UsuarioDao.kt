@@ -1,9 +1,11 @@
 package cl.duoc.casajojo.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import cl.duoc.casajojo.data.local.entity.Usuario
 import kotlinx.coroutines.flow.Flow
 
@@ -26,4 +28,16 @@ interface UsuarioDao {
     /** Usuario por id como Flow: la UI se actualiza si cambian sus datos. */
     @Query("SELECT * FROM usuarios WHERE id = :id LIMIT 1")
     fun porId(id: Long): Flow<Usuario?>
+
+    /** EFT: lectura puntual (no Flow) para editar el perfil. */
+    @Query("SELECT * FROM usuarios WHERE id = :id LIMIT 1")
+    suspend fun buscarPorId(id: Long): Usuario?
+
+    /** EFT: sincroniza la copia local tras editar el perfil o cambiar la contraseña. */
+    @Update
+    suspend fun actualizar(usuario: Usuario)
+
+    /** EFT: elimina la copia local al borrar la cuenta. */
+    @Delete
+    suspend fun eliminar(usuario: Usuario)
 }

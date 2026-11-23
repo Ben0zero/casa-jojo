@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    M14 (solo builds debug): además de los hosts del emulador, se permite HTTP sin
+    cifrar hacia cualquier host para poder probar en un celular físico con la IP
+    de la PC (API_HOST en app/build.gradle.kts). El APK release NO usa este archivo.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

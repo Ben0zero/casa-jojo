@@ -1,6 +1,9 @@
 package cl.duoc.casajojo.data.repository
 
 import cl.duoc.casajojo.data.remote.ClimaApi
+import cl.duoc.casajojo.data.remote.ErroresRemotos
+import cl.duoc.casajojo.domain.error.ServidorException
+import kotlinx.coroutines.CancellationException
 import cl.duoc.casajojo.data.remote.RetrofitInstance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,7 +21,7 @@ class ClimaRepository(
 
     /** Coordenadas de Viña del Mar, Chile. */
     suspend fun climaActual(): Result<String> = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val respuesta = api.climaActual(
                 lat = -33.0246,
                 lon = -71.5518,
@@ -29,7 +32,18 @@ class ClimaRepository(
             val temperatura = actual.temperatura ?: error("Open-Meteo sin temperatura")
             val descripcion = descripcion(actual.codigo)
             val viento = actual.viento?.roundToInt() ?: 0
-            "$descripcion · ${temperatura.roundToInt()}° · viento $viento km/h"
+            Result.success("$descripcion · ${temperatura.roundToInt()}° · viento $viento km/h")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // EFT: la falla se informa con la jerarquía propia (RedException, ServidorException...).
+            Result.failure(
+                if (e is IllegalStateException) {
+                    ServidorException(-1, "El servicio del clima no envió datos", e)
+                } else {
+                    ErroresRemotos.traducir(e)
+                }
+            )
         }
     }
 

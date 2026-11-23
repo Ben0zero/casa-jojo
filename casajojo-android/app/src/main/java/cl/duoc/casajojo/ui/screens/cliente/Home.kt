@@ -1,5 +1,7 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -200,18 +202,28 @@ fun ViewHome(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                         )
+                        // EFT (API externa): estados de carga, éxito y error con reintento.
                         val detalleClima = when {
                             clima.cargando -> "Consultando clima…"
                             clima.texto != null -> clima.texto ?: "Clima disponible"
-                            clima.fallo -> "Sin conexión con el clima"
+                            clima.fallo -> clima.error ?: "Sin conexión con el clima"
                             else -> "Disponible al abrir la app"
                         }
                         Text(
                             detalleClima,
-                            color = VerdeOscuro,
+                            color = if (clima.fallo) MaterialTheme.colorScheme.error else VerdeOscuro,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                         )
+                    }
+                    if (clima.cargando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = VerdeOscuro,
+                        )
+                    } else if (clima.fallo) {
+                        TextButton(onClick = climaVm::cargar) { Text("Reintentar") }
                     }
                 }
             }

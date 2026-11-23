@@ -13,7 +13,8 @@ data class LoginRequestDto(
 data class RegistroRequestDto(
     val nombre: String,
     val correo: String,
-    val telefono: String,
+    /** Opcional en ms-auth; null si no se conoce (Gson no lo envía). */
+    val telefono: String?,
     val password: String,
 )
 
@@ -26,3 +27,26 @@ data class UsuarioResponseDto(
     val telefono: String? = null,
     val token: String? = null,
 )
+
+// ---------- EFT: recuperación de contraseña y perfil (/api/usuarios/me) ----------
+
+data class RecuperarRequestDto(val correo: String)
+
+data class RestablecerRequestDto(
+    val correo: String,
+    val codigo: String,
+    val nuevaPassword: String,
+)
+
+data class ActualizarPerfilDto(
+    val nombre: String,
+    val telefono: String,
+)
+
+data class CambiarPasswordDto(
+    val passwordActual: String,
+    val nuevaPassword: String,
+)
+
+/** Respuesta simple {"mensaje": "..."} de ms-auth. */
+data class MensajeDto(val mensaje: String? = null)

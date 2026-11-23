@@ -20,7 +20,7 @@ interface ProductoDao {
     @Insert
     suspend fun insertAll(productos: List<Producto>)
 
-    /** EA3: reemplaza la caché del menú con lo que envía ms-catalogoProductos. */
+    /** EA3: reemplaza la caché del menú con lo que envía ms-catalogo. */
     @Query("DELETE FROM productos")
     suspend fun borrarTodo()
 }

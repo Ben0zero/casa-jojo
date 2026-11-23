@@ -1,6 +1,6 @@
 package cl.duoc.casajojo.data.remote.dto
 
-/** Plato del menú devuelto por ms-catalogoProductos (/api/menu). */
+/** Plato del menú devuelto por ms-catalogo (/api/menu). */
 data class PlatoMenuDto(
     val id: Long? = null,
     val sku: String? = null,

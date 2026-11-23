@@ -1,11 +1,12 @@
 package cl.duoc.casajojo.ui.viewmodels
 
+import cl.duoc.casajojo.domain.model.EstadoPedido
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 
 /** RF-14 (portado desde origin/android): filtros del Historial. */
 enum class FiltroHistorial(val etiqueta: String, val estado: String) {
-    Entregados("Entregados", "entregado"),
-    Cancelados("Cancelados", "cancelado"),
+    Entregados("Entregados", EstadoPedido.Entregado.codigo),
+    Cancelados("Cancelados", EstadoPedido.Cancelado.codigo),
 }
 
 /**

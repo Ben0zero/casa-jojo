@@ -10,15 +10,33 @@ plugins {
     id("jacoco")
 }
 
-// EA3 / IL3.3: datos de firma. Se leen de local.properties (no se sube a Git)
-// o de variables de entorno; los valores por defecto permiten compilar el APK
-// de entrega en un clone limpio del proyecto de la asignatura.
+// EFT (Fase A): la firma se lee de keystore.properties (versionado junto al .jks,
+// como exige la rúbrica). Las variables CASAJOJO_* del entorno tienen prioridad.
 val firmas = Properties().apply {
+    val archivo = rootProject.file("keystore.properties")
+    if (archivo.exists()) archivo.inputStream().use { load(it) }
+}
+fun clave(nombre: String, variable: String): String? =
+    (System.getenv(variable) ?: firmas.getProperty(nombre))?.takeIf { it.isNotBlank() }
+
+val firmaArchivo = clave("storeFile", "CASAJOJO_KEYSTORE_FILE")
+val firmaStorePassword = clave("storePassword", "CASAJOJO_KEYSTORE_PASSWORD")
+val firmaAlias = clave("keyAlias", "CASAJOJO_KEY_ALIAS")
+val firmaKeyPassword = clave("keyPassword", "CASAJOJO_KEY_PASSWORD")
+val firmaCompleta = listOf(firmaArchivo, firmaStorePassword, firmaAlias, firmaKeyPassword).all { it != null }
+if (!firmaCompleta) {
+    logger.warn("Casa JoJo: falta keystore.properties; el APK release quedará SIN firmar.")
+}
+
+// EFT (Fase A): host de los microservicios. Prioridad: -PapiHost=... > casajojo.apiHost
+// en local.properties > 10.0.2.2 (la PC vista desde el emulador). Aplica a debug y release.
+val localProps = Properties().apply {
     val archivo = rootProject.file("local.properties")
     if (archivo.exists()) archivo.inputStream().use { load(it) }
 }
-fun clave(nombre: String, variable: String, valor: String): String =
-    firmas.getProperty(nombre) ?: System.getenv(variable) ?: valor
+val apiHost: String = (findProperty("apiHost") as String?)?.takeIf { it.isNotBlank() }
+    ?: localProps.getProperty("casajojo.apiHost")?.takeIf { it.isNotBlank() }
+    ?: "10.0.2.2"
 
 android {
     namespace = "cl.duoc.casajojo"
@@ -32,28 +50,29 @@ android {
         versionCode = 3
         versionName = "0.3.0" // EA3: microservicios + Retrofit + APK firmado
 
-        // Emulador: 10.0.2.2 apunta al equipo host. Para un celular físico,
-        // cambia este valor por la IP de la PC en la misma red Wi-Fi.
-        buildConfigField("String", "API_HOST", "\"10.0.2.2\"")
+        // Emulador: 10.0.2.2 apunta al equipo host. Para un celular físico se compila
+        // con -PapiHost=<IP de la PC> (ver docs/DEMO.md).
+        buildConfigField("String", "API_HOST", "\"$apiHost\"")
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file(clave(
-                "casajojo.keystore.file",
-                "CASAJOJO_KEYSTORE_FILE",
-                "keystore/casajojo-release.jks"
-            ))
-            storePassword = clave("casajojo.keystore.password", "CASAJOJO_KEYSTORE_PASSWORD", "CasaJojo2026!")
-            keyAlias = clave("casajojo.key.alias", "CASAJOJO_KEY_ALIAS", "casajojo")
-            keyPassword = clave("casajojo.key.password", "CASAJOJO_KEY_PASSWORD", "CasaJojo2026!")
+        // Solo se crea si están los 4 datos; así un clone limpio sigue compilando en debug.
+        if (firmaCompleta) {
+            create("release") {
+                storeFile = file(firmaArchivo!!)
+                storePassword = firmaStorePassword
+                keyAlias = firmaAlias
+                keyPassword = firmaKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            if (firmaCompleta) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -141,13 +160,44 @@ tasks.register<JacocoReport>("jacocoTestReportDebug") {
 }
 
 /**
- * Reporte de la lógica verificable con tests unitarios de JVM: repositorios,
- * dominio y DTO. La UI de Compose y el código generado por Room/DataStore se
+ * EFT (Fase F): lo que NO entra al porcentaje. Se mide ViewModel + Repository + domain;
+ * la UI de Compose (pantallas, componentes, tema), Room/DataStore generados, Retrofit y
+ * utilidades de Android se validan en el emulador, no con JUnit.
+ */
+val excluidosCobertura = listOf(
+    "cl/duoc/casajojo/ui/screens/**",
+    "cl/duoc/casajojo/ui/components/**",
+    "cl/duoc/casajojo/ui/layouts/**",
+    "cl/duoc/casajojo/ui/theme/**",
+    "cl/duoc/casajojo/ui/App*",
+    "cl/duoc/casajojo/ui/ComposableSingletons*",
+    "cl/duoc/casajojo/ui/NavegacionApp*",
+    "cl/duoc/casajojo/ui/viewmodels/AvisosPedido\$DelSistema*",
+    "cl/duoc/casajojo/data/local/dao/**",
+    "cl/duoc/casajojo/data/local/CasaJojoDatabase*",
+    "cl/duoc/casajojo/data/local/RoomTransactionRunner*",
+    "cl/duoc/casajojo/data/local/SesionPreferences*",
+    "cl/duoc/casajojo/data/local/Converters*",
+    "cl/duoc/casajojo/data/local/PerfilPhotoStorage*",
+    "cl/duoc/casajojo/data/local/TransactionRunner*",
+    "cl/duoc/casajojo/data/local/MenuSeed*",
+    "cl/duoc/casajojo/data/local/entity/**",
+    "cl/duoc/casajojo/data/remote/**",
+    "cl/duoc/casajojo/utils/**",
+    "cl/duoc/casajojo/navigation/**",
+    "cl/duoc/casajojo/MainActivity*",
+    "cl/duoc/casajojo/ComposableSingletons*",
+    "cl/duoc/casajojo/CasaJojoApplication*",
+)
+
+/**
+ * Reporte de la lógica verificable con tests unitarios de JVM: ViewModel,
+ * Repository y domain. La UI de Compose y el código generado por Room/DataStore se
  * validan en emulador, no con JUnit, por eso se excluyen de este porcentaje.
  */
 tasks.register<JacocoReport>("jacocoTestReportCore") {
     group = "verification"
-    description = "Cobertura JaCoCo de la lógica (repositorios, dominio y DTO)."
+    description = "Cobertura JaCoCo de ViewModel, Repository y domain."
     dependsOn("testDebugUnitTest")
 
     reports {
@@ -156,24 +206,7 @@ tasks.register<JacocoReport>("jacocoTestReportCore") {
     }
     val kotlin = layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")
     val javac = layout.buildDirectory.dir("intermediates/javac/debug/classes")
-    val excluidos = listOf(
-        "cl/duoc/casajojo/ui/**",
-        "cl/duoc/casajojo/data/local/dao/**",
-        "cl/duoc/casajojo/data/local/CasaJojoDatabase*",
-        "cl/duoc/casajojo/data/local/RoomTransactionRunner*",
-        "cl/duoc/casajojo/data/local/SesionPreferences*",
-        "cl/duoc/casajojo/data/local/Converters*",
-        "cl/duoc/casajojo/data/local/PerfilPhotoStorage*",
-        "cl/duoc/casajojo/data/local/TransactionRunner*",
-        "cl/duoc/casajojo/data/local/MenuSeed*",
-        "cl/duoc/casajojo/data/remote/**",
-        "cl/duoc/casajojo/utils/**",
-        "cl/duoc/casajojo/navigation/**",
-        "cl/duoc/casajojo/MainActivity*",
-        "cl/duoc/casajojo/App*",
-        "cl/duoc/casajojo/ComposableSingletons*",
-        "cl/duoc/casajojo/CasaJojoApplication*",
-    )
+    val excluidos = excluidosCobertura
     sourceDirectories.setFrom(files("src/main/java"))
     classDirectories.setFrom(
         fileTree(kotlin.get().asFile) {
@@ -192,7 +225,7 @@ tasks.register<JacocoReport>("jacocoTestReportCore") {
     )
 }
 
-/** Umbral defendido en la rúbrica: ≥80% de líneas en la lógica verificable. */
+/** Umbral defendido en la rúbrica: ≥80% de líneas en ViewModel, Repository y domain. */
 tasks.register<JacocoCoverageVerification>("jacocoVerificar80") {
     group = "verification"
     description = "Falla si la cobertura de líneas de la lógica baja de 80%."
@@ -200,24 +233,7 @@ tasks.register<JacocoCoverageVerification>("jacocoVerificar80") {
 
     val kotlin = layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes")
     val javac = layout.buildDirectory.dir("intermediates/javac/debug/classes")
-    val excluidos = listOf(
-        "cl/duoc/casajojo/ui/**",
-        "cl/duoc/casajojo/data/local/dao/**",
-        "cl/duoc/casajojo/data/local/CasaJojoDatabase*",
-        "cl/duoc/casajojo/data/local/RoomTransactionRunner*",
-        "cl/duoc/casajojo/data/local/SesionPreferences*",
-        "cl/duoc/casajojo/data/local/Converters*",
-        "cl/duoc/casajojo/data/local/PerfilPhotoStorage*",
-        "cl/duoc/casajojo/data/local/TransactionRunner*",
-        "cl/duoc/casajojo/data/local/MenuSeed*",
-        "cl/duoc/casajojo/data/remote/**",
-        "cl/duoc/casajojo/utils/**",
-        "cl/duoc/casajojo/navigation/**",
-        "cl/duoc/casajojo/MainActivity*",
-        "cl/duoc/casajojo/App*",
-        "cl/duoc/casajojo/ComposableSingletons*",
-        "cl/duoc/casajojo/CasaJojoApplication*",
-    )
+    val excluidos = excluidosCobertura
     classDirectories.setFrom(
         fileTree(kotlin.get().asFile) { include("**/*.class"); exclude(excluidos) },
         fileTree(javac.get().asFile) { include("**/*.class"); exclude(excluidos) },

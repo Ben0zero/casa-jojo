@@ -15,7 +15,10 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 import java.io.IOException
 
 /**
@@ -130,5 +133,129 @@ class AuthRepositoryTest {
         val error = resultado.shouldBeInstanceOf<ResultadoAuth.Error>()
         error.campoCorreo shouldBe true
         coVerify(exactly = 0) { api.registrar(any()) }
+    }
+
+    @Test
+    fun `B5 login de una cuenta que solo existe en el servidor guarda su nombre y telefono`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns null
+        coEvery { usuarios.insertar(any()) } returns 30L
+        coEvery { api.login(any()) } returns UsuarioResponseDto(
+            nombre = "Camila González",
+            correo = "camila@casajojo.cl",
+            telefono = "+56912345678",
+            token = "jwt",
+        )
+
+        repo.iniciarSesion("camila@casajojo.cl", "Cliente123").shouldBeInstanceOf<ResultadoAuth.Exito>()
+
+        val copia = slot<Usuario>()
+        coVerify { usuarios.insertar(capture(copia)) }
+        copia.captured.nombre shouldBe "Camila González"
+        copia.captured.telefono shouldBe "912345678"
+    }
+
+    // ---------- M7 / M8: rechazo del servidor vs. falta de servicio ----------
+
+    private fun http(codigo: Int) = HttpException(Response.error<Any>(codigo, "{}".toResponseBody()))
+
+    @Test
+    fun `M7 login rechazado por el servidor (401) no cae a la cache local`() = runTest {
+        // La contraseña "vieja" sigue en Room, pero el servidor ya la rechazó y el
+        // correo SÍ existe allá (registrar → 409): no se entra con la clave vieja.
+        coEvery { usuarios.porCorreo(any()) } returns usuarioLocal(password = "ClaveVieja1")
+        coEvery { api.login(any()) } throws http(401)
+        coEvery { api.registrar(any()) } throws http(409)
+
+        val resultado = repo.iniciarSesion("camila@casajojo.cl", "ClaveVieja1")
+
+        val error = resultado.shouldBeInstanceOf<ResultadoAuth.Error>()
+        error.mensaje shouldBe "Correo o contraseña incorrectos"
+        coVerify(exactly = 0) { sesion.iniciar(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cuenta registrada sin conexion se sube a ms-auth en el siguiente login`() = runTest {
+        // Solo existe en Room (se creó sin red): el servidor responde 401 al login.
+        coEvery { usuarios.porCorreo("camila@casajojo.cl") } returns usuarioLocal(password = "Cliente123")
+        coEvery { api.login(any()) } throws http(401)
+        coEvery { api.registrar(any()) } returns UsuarioResponseDto(correo = "camila@casajojo.cl", token = "jwt-nuevo")
+
+        val resultado = repo.iniciarSesion("camila@casajojo.cl", "Cliente123")
+
+        resultado.shouldBeInstanceOf<ResultadoAuth.Exito>()
+        val enviado = slot<RegistroRequestDto>()
+        coVerify { api.registrar(capture(enviado)) }
+        enviado.captured.nombre shouldBe "Camila González"
+        enviado.captured.telefono shouldBe "912345678"
+        coVerify { sesion.iniciar(11L, "camila@casajojo.cl", "jwt-nuevo") }
+    }
+
+    @Test
+    fun `con 401 y una contrasena que no coincide con la local no se intenta registrar`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns usuarioLocal(password = "Cliente123")
+        coEvery { api.login(any()) } throws http(401)
+
+        repo.iniciarSesion("camila@casajojo.cl", "OtraClave9").shouldBeInstanceOf<ResultadoAuth.Error>()
+
+        coVerify(exactly = 0) { api.registrar(any()) }
+    }
+
+    @Test
+    fun `M7 login sin red usa la cache local`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns usuarioLocal(password = "Cliente123")
+        coEvery { api.login(any()) } throws IOException("sin conexión")
+
+        val resultado = repo.iniciarSesion("camila@casajojo.cl", "Cliente123")
+
+        resultado.shouldBeInstanceOf<ResultadoAuth.Exito>()
+        coVerify { sesion.iniciar(11L, "camila@casajojo.cl", null) }
+    }
+
+    @Test
+    fun `M7 login con error 500 del servidor usa la cache local`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns usuarioLocal(password = "Cliente123")
+        coEvery { api.login(any()) } throws http(500)
+
+        val resultado = repo.iniciarSesion("camila@casajojo.cl", "Cliente123")
+
+        resultado.shouldBeInstanceOf<ResultadoAuth.Exito>()
+    }
+
+    @Test
+    fun `M8 registro con correo ya existente en el servidor (409) no crea cuenta local`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns null
+        coEvery { api.registrar(any()) } throws http(409)
+
+        val resultado = repo.registrar("Camila", "camila@casajojo.cl", "912345678", "Cliente123")
+
+        val error = resultado.shouldBeInstanceOf<ResultadoAuth.Error>()
+        error.mensaje shouldBe "Ya existe una cuenta con ese correo"
+        error.campoCorreo shouldBe true
+        coVerify(exactly = 0) { usuarios.insertar(any()) }
+        coVerify(exactly = 0) { sesion.iniciar(any(), any(), any()) }
+    }
+
+    @Test
+    fun `M8 registro rechazado por datos invalidos (400) no crea cuenta local`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns null
+        coEvery { api.registrar(any()) } throws http(400)
+
+        val resultado = repo.registrar("Camila", "camila@casajojo.cl", "912345678", "Cliente123")
+
+        val error = resultado.shouldBeInstanceOf<ResultadoAuth.Error>()
+        error.campoCorreo shouldBe false
+        coVerify(exactly = 0) { usuarios.insertar(any()) }
+    }
+
+    @Test
+    fun `M8 registro sin red sigue creando la cuenta local`() = runTest {
+        coEvery { usuarios.porCorreo(any()) } returns null
+        coEvery { usuarios.insertar(any()) } returns 9L
+        coEvery { api.registrar(any()) } throws IOException("sin red")
+
+        val resultado = repo.registrar("Camila", "camila@casajojo.cl", "912345678", "Cliente123")
+
+        resultado.shouldBeInstanceOf<ResultadoAuth.Exito>()
+        coVerify { sesion.iniciar(9L, "camila@casajojo.cl", null) }
     }
 }

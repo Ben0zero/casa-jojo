@@ -10,12 +10,25 @@ import java.util.concurrent.TimeUnit
 /** Cliente Retrofit (guía IL3.1): una instancia por microservicio. */
 object RetrofitInstance {
 
+    /**
+     * A1: de dónde sale el token JWT. CasaJojoApplication lo conecta con DataStore
+     * al arrancar; mientras tanto (o en pruebas) no se envía token.
+     */
+    @Volatile
+    var proveedorToken: () -> String? = { null }
+
     private val clienteHttp: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
+            // B2: en debug se registran método, URL, código y cabeceras, pero NO los
+            // cuerpos (llevan contraseñas y datos personales).
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.HEADERS
             else HttpLoggingInterceptor.Level.NONE
+            // El token nunca se escribe en logcat.
+            redactHeader("Authorization")
         }
         OkHttpClient.Builder()
+            // A1: Authorization: Bearer solo hacia API_HOST (no hacia Open-Meteo).
+            .addInterceptor(AuthInterceptor(BuildConfig.API_HOST) { proveedorToken() })
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)

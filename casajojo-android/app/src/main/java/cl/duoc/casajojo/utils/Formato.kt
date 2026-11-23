@@ -1,27 +1,18 @@
 package cl.duoc.casajojo.utils
 
+import cl.duoc.casajojo.domain.model.EstadoPedido
 import androidx.compose.ui.graphics.Color
 
 fun Int.money(): String =
     "$" + this.toString().reversed().chunked(3).joinToString(".").reversed()
 
-fun textoEstadoPedido(estado: String): String = when (estado) {
-    "recibido" -> "Recibido"
-    "preparacion" -> "En preparación"
-    "listo" -> "Listo"
-    "entregado" -> "Entregado"
-    "cancelado" -> "Cancelado"
-    else -> estado.replaceFirstChar { it.uppercase() }
-}
+/** EFT (POO): el texto lo entrega cada EstadoPedido (polimorfismo). */
+fun textoEstadoPedido(estado: String): String =
+    EstadoPedido.desdeOrNull(estado)?.etiqueta() ?: estado.replaceFirstChar { it.uppercase() }
 
-fun colorEstadoPedido(estado: String): Color = when (estado) {
-    "recibido" -> Color(0xFF6D6D67)
-    "preparacion" -> Color(0xFFB7791F)
-    "listo" -> Color(0xFF2B6CB0)
-    "entregado" -> Color(0xFF2F855A)
-    "cancelado" -> Color(0xFFC53030)
-    else -> Color(0xFF6D6D67)
-}
+/** EFT (POO): el color lo entrega cada EstadoPedido (polimorfismo). */
+fun colorEstadoPedido(estado: String): Color =
+    Color(EstadoPedido.desdeOrNull(estado)?.color() ?: 0xFF6D6D67)
 
 fun textoEstadoPago(estado: String): String = when (estado) {
     "pagado" -> "Pagado"

@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
+import cl.duoc.casajojo.domain.model.FormaPago
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cl.duoc.casajojo.ui.components.Boton
@@ -26,9 +28,11 @@ import cl.duoc.casajojo.ui.components.TituloBloque
 import cl.duoc.casajojo.ui.components.Volver
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
+import cl.duoc.casajojo.domain.usecase.ReglasPedido
+import java.time.LocalTime
 
-private val HORAS_RETIRO = listOf("12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00")
-private val FORMAS_PAGO = listOf("Transferencia", "Pagar en tienda")
+/** EFT (POO): las opciones salen de la jerarquía FormaPago. */
+internal val FORMAS_PAGO: List<String> get() = FormaPago.etiquetas
 
 /**
  * PASO 4 — Retiro y pago.
@@ -47,6 +51,12 @@ fun ViewRetiro(
 
     val usuario by vm.usuario.collectAsState()
     LaunchedEffect(usuario) { vm.prellenarNombre(usuario?.nombre) }
+
+    // B7: solo horas que todavía no pasan; si la elegida ya pasó, se toma la primera libre.
+    val horas = remember { ReglasPedido.horasDisponibles(LocalTime.now()) }
+    LaunchedEffect(horas) {
+        if (horas.isNotEmpty() && vm.retiro.horaRetiro !in horas) vm.onHoraRetiro(horas.first())
+    }
 
     Pantalla {
         Column {
@@ -69,7 +79,11 @@ fun ViewRetiro(
             Spacer(Modifier.height(20.dp))
             TituloBloque("⏰", "Hora de retiro")
             Spacer(Modifier.height(10.dp))
-            ChipRow(HORAS_RETIRO, vm.retiro.horaRetiro, vm::onHoraRetiro)
+            if (horas.isEmpty()) {
+                Nota("Por hoy ya no quedan horarios de retiro (último retiro: ${ReglasPedido.HORAS_RETIRO.last()}).")
+            } else {
+                ChipRow(horas, vm.retiro.horaRetiro, vm::onHoraRetiro)
+            }
 
             Spacer(Modifier.height(20.dp))
             TituloBloque("💳", "Forma de pago")

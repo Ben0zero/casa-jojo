@@ -8,7 +8,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duoc.casajojo.data.local.CasaJojoDatabase
 import cl.duoc.casajojo.data.local.RoomTransactionRunner
-import cl.duoc.casajojo.utils.Notificaciones
 import cl.duoc.casajojo.data.local.SesionPreferences
 import cl.duoc.casajojo.data.local.entity.Pedido
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
@@ -16,7 +15,10 @@ import cl.duoc.casajojo.data.local.entity.Producto
 import cl.duoc.casajojo.data.local.entity.Usuario
 import cl.duoc.casajojo.data.repository.AuthRepository
 import cl.duoc.casajojo.data.repository.PedidoRepository
+import cl.duoc.casajojo.domain.error.CasaJojoException
+import cl.duoc.casajojo.domain.error.ValidacionException
 import cl.duoc.casajojo.domain.model.PlatoDraft
+import cl.duoc.casajojo.domain.usecase.QrRetiro
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 
 /**
  * ViewModel único del flujo del cliente. Lo comparten todas las pantallas
@@ -42,19 +45,32 @@ import kotlinx.coroutines.launch
  * 2) Estado del formulario en memoria con mutableStateOf (carrito, nombre,
  *    hora, etc.). Compose redibuja automáticamente cuando cambian.
  */
-class ClienteViewModel @JvmOverloads constructor(
+class ClienteViewModel(
     app: Application,
-    private val db: CasaJojoDatabase = CasaJojoDatabase.get(app),
-    private val repo: PedidoRepository = PedidoRepository(
-        productos = db.productoDao(),
-        pedidos = db.pedidoDao(),
-        transacciones = RoomTransactionRunner(db),
-    ),
+    private val repo: PedidoRepository,
+    // NUEVO (fase 1): sesión guardada en DataStore y datos del usuario logueado.
+    // EFT: se reciben por constructor para poder probar el ViewModel con MockK.
+    private val sesion: SesionPreferences,
+    private val authRepo: AuthRepository,
+    /** Recurso nativo (notificaciones); en las pruebas se reemplaza por uno vacío. */
+    private val avisos: AvisosPedido = AvisosPedido.DelSistema(app),
+    /** Hora actual (B7: horas de retiro que ya pasaron); en las pruebas se fija. */
+    private val ahora: () -> LocalTime = { LocalTime.now() },
 ) : AndroidViewModel(app) {
 
-    // NUEVO (fase 1): sesión guardada en DataStore y datos del usuario logueado.
-    private val sesion = SesionPreferences(app)
-    private val authRepo = AuthRepository(db.usuarioDao(), sesion)
+    /** Constructor que usa la app (viewModel()): arma Room, DataStore y los repositorios. */
+    constructor(app: Application) : this(app, CasaJojoDatabase.get(app), SesionPreferences(app))
+
+    private constructor(app: Application, db: CasaJojoDatabase, sesion: SesionPreferences) : this(
+        app = app,
+        repo = PedidoRepository(
+            productos = db.productoDao(),
+            pedidos = db.pedidoDao(),
+            transacciones = RoomTransactionRunner(db),
+        ),
+        sesion = sesion,
+        authRepo = AuthRepository(db.usuarioDao(), sesion),
+    )
 
     /** Usuario con sesión activa; se usa para saludar y prellenar el nombre del retiro. */
     val usuario: StateFlow<Usuario?> = authRepo.usuarioActual.stateIn(
@@ -155,60 +171,41 @@ class ClienteViewModel @JvmOverloads constructor(
 
     init {
         resetear()
-        // EA3: al abrir la app se actualiza el menú y el estado del último
-        // pedido desde los microservicios. Si no hay red, Room mantiene la
-        // última copia y la pantalla sigue funcionando.
+        // EA3: al abrir la app se actualiza el menú y, A4 / M11, se reenvían los
+        // pedidos que quedaron sin enviar y se sincroniza el estado de TODOS los
+        // pedidos del usuario. Si no hay red, Room mantiene la última copia.
         viewModelScope.launch {
             repo.sincronizarMenu()
-            val correo = sesion.ultimoCorreo()
-            if (correo.isNotBlank()) repo.sincronizarEstado(correo)
+            sincronizarPedidos()
         }
     }
 
-    /** Llamado desde "Mi pedido" para refrescar el estado remoto. */
+    /** Vuelve a traer el menú y sincronizar los pedidos (p. ej. al conceder el permiso de red local). */
+    fun sincronizarConServidor() {
+        viewModelScope.launch {
+            repo.sincronizarMenu()
+            sincronizarPedidos()
+        }
+    }
+
+    /** Llamado desde "Mi pedido" para reenviar pendientes y refrescar el estado remoto. */
     fun sincronizarUltimoPedido() {
-        viewModelScope.launch {
-            val correo = sesion.ultimoCorreo()
-            if (correo.isNotBlank()) repo.sincronizarEstado(correo)
+        viewModelScope.launch { sincronizarPedidos() }
+    }
+
+    private suspend fun sincronizarPedidos() {
+        try {
+            repo.sincronizarEstados(sesion.usuarioId.first(), sesion.ultimoCorreo())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // La sincronización es de mejor esfuerzo: la pantalla sigue con la caché.
         }
     }
 
-    /** Mensaje del CRUD real (PUT) mostrado en "Mi pedido". */
-    var mensajeEstado by mutableStateOf<String?>(null)
-        private set
-
-    var cambiandoEstado by mutableStateOf(false)
-        private set
-
-    /**
-     * EA3 / IE 3.1.3: modificación en tiempo real. El cliente marca el pedido
-     * como listo y el cambio se escribe en Oracle vía ms-ventas (PUT).
-     */
-    fun marcarListoParaRetiro() {
-        val pedido = ultimoPedido.value ?: return
-        viewModelScope.launch {
-            cambiandoEstado = true
-            mensajeEstado = null
-            val correo = sesion.ultimoCorreo()
-            val numero = pedido.pedido.numero
-            val resultado = try {
-                repo.cambiarEstadoRemoto(correo, numero, "LISTO")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-            mensajeEstado = resultado.fold(
-                onSuccess = { "Pedido #$numero actualizado en el servidor ✓" },
-                onFailure = { it.message ?: "No se pudo actualizar el pedido" },
-            )
-            cambiandoEstado = false
-        }
-    }
-
-    fun limpiarMensajeEstado() {
-        mensajeEstado = null
-    }
+    // M10: se eliminó "marcarListoParaRetiro". Marcar un pedido como LISTO le
+    // corresponde a la cocina, no al cliente. La app solo sincroniza el estado
+    // (sincronizarUltimoPedido) y cancela o retira con QR.
 
     fun limpiarError() {
         error = null
@@ -320,6 +317,11 @@ class ClienteViewModel @JvmOverloads constructor(
             error = "Revisa los campos marcados"
             return
         }
+        // B7: no se aceptan horas de retiro que ya pasaron.
+        ReglasPedido.validarHoraRetiro(retiro.horaRetiro, ahora())?.let {
+            error = it
+            return
+        }
         val datos = retiro
 
         // viewModelScope.launch inicia una corrutina: el guardado corre sin
@@ -337,14 +339,14 @@ class ClienteViewModel @JvmOverloads constructor(
                     indicaciones = datos.indicaciones.trim(),
                     platos = cart.toList(),
                     correo = sesion.ultimoCorreo(),
-                    origen = "Mostrador",
+                    origen = PedidoRepository.ORIGEN_APP, // M16: antes "Mostrador"
                 )
                 ultimoNumero = numero
 
                 // RECURSO NATIVO: aviso del sistema. Se toma la hora ANTES de
                 // resetear(), porque resetear() deja el formulario vacío y la
                 // notificación quedaría sin hora.
-                Notificaciones.pedidoRegistrado(getApplication(), numero, datos.horaRetiro)
+                avisos.pedidoRegistrado(numero, datos.horaRetiro)
 
                 resetear()
                 despues()
@@ -390,7 +392,7 @@ class ClienteViewModel @JvmOverloads constructor(
                 val resultado = repo.cancelarPedidoRemoto(sesion.ultimoCorreo(), pedido)
                 val cancelado = resultado.isSuccess
                 if (cancelado) {
-                    Notificaciones.quitarPedidoRegistrado(getApplication())
+                    avisos.quitarPedidoRegistrado()
                 } else {
                     error = resultado.exceptionOrNull()?.message
                         ?: "No pudimos cancelar tu pedido. Intenta de nuevo."
@@ -411,14 +413,21 @@ class ClienteViewModel @JvmOverloads constructor(
      * "entregado" en Oracle y en Room (así aparece en el Historial). Un pedido
      * cancelado no cambia: lo impiden la regla y la consulta del DAO.
      */
-    fun registrarRetiro(pedido: Pedido) {
+    fun registrarRetiro(pedido: Pedido, contenidoQr: String?) {
         if (!ReglasPedido.puedeRetirarConQr(pedido.estadoPedido)) {
-            error = "Este pedido ya no se puede retirar"
+            error = "Tu pedido aún no está listo para retirar"
+            return
+        }
+        // A5: solo se acepta el QR propio de la tienda (casajojo://retiro?codigo=...).
+        // Ya no se abre ninguna URL escaneada.
+        val codigo = QrRetiro.codigo(contenidoQr)
+        if (codigo == null) {
+            error = "Este QR no es de La Casa JoJo"
             return
         }
         viewModelScope.launch {
             try {
-                val resultado = repo.marcarEntregadoRemoto(sesion.ultimoCorreo(), pedido)
+                val resultado = repo.marcarEntregadoRemoto(sesion.ultimoCorreo(), pedido, codigo)
                 if (resultado.isFailure) {
                     error = resultado.exceptionOrNull()?.message
                         ?: "No pudimos registrar el retiro. Intenta de nuevo."
@@ -431,11 +440,102 @@ class ClienteViewModel @JvmOverloads constructor(
         }
     }
 
+    // ---------- EFT / RF-12: editar el pedido mientras está RECIBIDO ----------
+
+    /** Ficha del diálogo "Editar pedido"; pedido == null significa diálogo cerrado. */
+    var edicion by mutableStateOf(EdicionPedidoUiState())
+        private set
+
+    /** Abre el diálogo con los datos actuales del pedido (solo si sigue "recibido"). */
+    fun abrirEdicion(pedido: Pedido) {
+        if (!ReglasPedido.puedeEditar(pedido.estadoPedido)) {
+            error = PedidoRepository.MSG_NO_EDITABLE
+            return
+        }
+        edicion = EdicionPedidoUiState(
+            pedido = pedido,
+            nombre = pedido.nombre,
+            horaRetiro = pedido.horaRetiro,
+            formaPago = pedido.formaPago,
+            indicaciones = pedido.indicaciones,
+        )
+    }
+
+    fun cerrarEdicion() {
+        if (!edicion.guardando) edicion = EdicionPedidoUiState()
+    }
+
+    fun onEdicionNombre(v: String) {
+        edicion = edicion.copy(nombre = v, errorNombre = null)
+    }
+
+    fun onEdicionHora(v: String) {
+        edicion = edicion.copy(horaRetiro = v)
+    }
+
+    fun onEdicionFormaPago(v: String) {
+        edicion = edicion.copy(formaPago = v)
+    }
+
+    fun onEdicionIndicaciones(v: String) {
+        edicion = edicion.copy(indicaciones = v)
+    }
+
+    /**
+     * Valida (domain) y guarda en ms-ventas + Room. alTerminar recibe el mensaje para
+     * el Snackbar. Si la cocina ya empezó (409), el diálogo se cierra con el aviso.
+     */
+    fun guardarEdicion(alTerminar: (String) -> Unit) {
+        val datos = edicion
+        val pedido = datos.pedido ?: return
+        if (datos.guardando) return
+        val errNombre = ReglasPedido.validarNombre(datos.nombre)
+        if (errNombre != null) {
+            edicion = datos.copy(errorNombre = errNombre)
+            return
+        }
+        viewModelScope.launch {
+            edicion = edicion.copy(guardando = true)
+            try {
+                val resultado = repo.editarPedido(
+                    correo = sesion.ultimoCorreo(),
+                    pedido = pedido,
+                    nombre = datos.nombre,
+                    horaRetiro = datos.horaRetiro,
+                    formaPago = datos.formaPago,
+                    indicaciones = datos.indicaciones,
+                )
+                resultado.fold(
+                    onSuccess = {
+                        edicion = EdicionPedidoUiState()
+                        alTerminar("Pedido #${pedido.numero} actualizado")
+                    },
+                    onFailure = { e ->
+                        val mensaje = (e as? CasaJojoException)?.mensajeUsuario
+                            ?: "No pudimos editar tu pedido. Intenta de nuevo."
+                        edicion = if ((e as? ValidacionException)?.campo == "nombre") {
+                            edicion.copy(guardando = false, errorNombre = mensaje)
+                        } else {
+                            EdicionPedidoUiState()
+                        }
+                        alTerminar(mensaje)
+                    },
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                edicion = EdicionPedidoUiState()
+                alTerminar("No pudimos editar tu pedido. Intenta de nuevo.")
+            }
+        }
+    }
+
     /** NUEVO (fase 1): al cerrar sesión se descarta el pedido a medio armar. */
     fun limpiarTodo() {
         resetear()
         ultimoNumero = null
         error = null
+        edicion = EdicionPedidoUiState()
     }
 
     /** Deja el formulario y el carrito listos para un pedido nuevo. */

@@ -35,6 +35,8 @@ import cl.duoc.casajojo.ui.theme.Ac
  * - tipoTeclado → abre el teclado adecuado (correo con @, numérico para el celular).
  * - accionIme → botón de la esquina del teclado: Next pasa al siguiente campo,
  *   Done cierra el teclado y ejecuta onListo (por ejemplo, enviar el formulario).
+ * - icono (EFT) → glifo a la izquierda del campo (✉️ correo, 🔒 contraseña...), con
+ *   el mismo estilo de emojis que usa el resto de la app.
  */
 @Composable
 fun CampoTexto(
@@ -48,6 +50,7 @@ fun CampoTexto(
     esContrasena: Boolean = false,
     enabled: Boolean = true,
     onListo: (() -> Unit)? = null,
+    icono: String? = null,
 ) {
     // rememberSaveable: "Mostrar contraseña" se mantiene aunque se gire el teléfono.
     var visible by rememberSaveable { mutableStateOf(false) }
@@ -70,8 +73,13 @@ fun CampoTexto(
         } else {
             null
         },
+        leadingIcon = if (icono != null) {
+            { Text(icono, fontSize = 18.sp) }
+        } else {
+            null
+        },
         supportingText = if (error != null) {
-            { Text(error, color = MaterialTheme.colorScheme.error) }
+            { Text("⚠ $error", color = MaterialTheme.colorScheme.error) }
         } else {
             null
         },

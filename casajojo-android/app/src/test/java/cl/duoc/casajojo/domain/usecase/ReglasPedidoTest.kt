@@ -119,9 +119,29 @@ class ReglasPedidoTest {
     }
 
     @Test
-    fun `Pedido cancelado o entregado no se retira con QR`() {
+    fun `B7 solo se ofrecen horas de retiro que aun no pasan`() {
+        val horas = ReglasPedido.horasDisponibles(java.time.LocalTime.of(13, 10))
+        assertEquals(listOf("13:30", "14:00", "14:30", "15:00"), horas)
+        assertEquals(ReglasPedido.HORAS_RETIRO, ReglasPedido.horasDisponibles(java.time.LocalTime.of(9, 0)))
+        assertTrue(ReglasPedido.horasDisponibles(java.time.LocalTime.of(15, 0)).isEmpty())
+    }
+
+    @Test
+    fun `B7 validar hora de retiro`() {
+        val mediodia = java.time.LocalTime.of(12, 10)
+        assertEquals(null, ReglasPedido.validarHoraRetiro("13:00", mediodia))
+        assertEquals("Elige una hora de retiro que aún no haya pasado", ReglasPedido.validarHoraRetiro("12:00", mediodia))
+        assertEquals("Por hoy ya no quedan horarios de retiro",
+            ReglasPedido.validarHoraRetiro("15:00", java.time.LocalTime.of(16, 0)))
+    }
+
+    @Test
+    fun `Solo un pedido listo se retira con QR`() {
+        // Fase 2 (M2): misma regla que ms-ventas, LISTO -> ENTREGADO.
+        assertTrue(ReglasPedido.puedeRetirarConQr("listo"))
+        assertFalse(ReglasPedido.puedeRetirarConQr("recibido"))
+        assertFalse(ReglasPedido.puedeRetirarConQr("preparacion"))
         assertFalse(ReglasPedido.puedeRetirarConQr("cancelado"))
         assertFalse(ReglasPedido.puedeRetirarConQr("entregado"))
-        assertTrue(ReglasPedido.puedeRetirarConQr("recibido"))
     }
 }

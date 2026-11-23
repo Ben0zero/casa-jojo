@@ -35,7 +35,9 @@ import androidx.navigation.compose.rememberNavController
 import cl.duoc.casajojo.ui.viewmodels.AuthViewModel
 import cl.duoc.casajojo.ui.viewmodels.EstadoSesion
 import cl.duoc.casajojo.ui.screens.auth.LoginScreen
+import cl.duoc.casajojo.ui.screens.auth.RecuperarScreen
 import cl.duoc.casajojo.ui.screens.auth.RegistroScreen
+import cl.duoc.casajojo.ui.viewmodels.PerfilViewModel
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
 import cl.duoc.casajojo.ui.screens.cliente.ViewAcompanamientos
 import cl.duoc.casajojo.ui.screens.cliente.ViewCarrito
@@ -47,6 +49,7 @@ import cl.duoc.casajojo.ui.screens.cliente.ViewProteina
 import cl.duoc.casajojo.ui.screens.cliente.ViewRetiro
 import cl.duoc.casajojo.ui.screens.cliente.ViewPerfil
 import cl.duoc.casajojo.navigation.AppRoutes
+import cl.duoc.casajojo.ui.components.PedirPermisoRedLocal
 import cl.duoc.casajojo.ui.theme.CasaJojoTheme
 import cl.duoc.casajojo.data.local.PerfilPhotoStorage
 
@@ -54,7 +57,8 @@ import cl.duoc.casajojo.data.local.PerfilPhotoStorage
  * Punto de entrada de la UI y mapa de navegación de la app.
  *
  *            ┌──────── sin sesión ────────┐
- *   abrir ──►│ login ◄──► registro        │──(ingresa / se registra)──┐
+ *   abrir ──►│ login ◄──► registro        │
+ *            │   └──► recuperar_password  │──(ingresa / se registra)──┐
  *            └────────────────────────────┘                           ▼
  *   abrir con sesión guardada ──────────────────────────────────────► home
  *
@@ -85,6 +89,10 @@ fun CasaJojoApp() {
     }
 
     val sesion by authVm.estadoSesion.collectAsState()
+
+    // Android 17+: sin permiso de red local la app no alcanza los microservicios de
+    // la PC. Al concederlo se vuelve a sincronizar el menú y los pedidos.
+    PedirPermisoRedLocal(onConcedido = { clienteVm.sincronizarConServidor() })
 
     CasaJojoTheme {
         // Surface pinta el fondo y define el color de texto por defecto
@@ -170,6 +178,19 @@ private fun NavegacionApp(
                 vm = authVm,
                 onIngresar = { irAlInicioLimpiando() },
                 onIrRegistro = { nav.navigate(AppRoutes.Registro.route) },
+                onOlvide = {
+                    authVm.abrirRecuperacion()
+                    nav.navigate(AppRoutes.RecuperarPassword.route)
+                },
+            )
+        }
+
+        // EFT: recuperación de contraseña; al terminar vuelve al login con el correo listo.
+        composable(AppRoutes.RecuperarPassword.route) {
+            RecuperarScreen(
+                vm = authVm,
+                onVolver = { nav.popBackStack() },
+                onRestablecida = { nav.popBackStack(AppRoutes.Login.route, false) },
             )
         }
 
@@ -203,10 +224,19 @@ private fun NavegacionApp(
         }
 
         composable(AppRoutes.Perfil.route) {
+            // EFT: un PerfilViewModel por visita a la pantalla (se refresca desde ms-auth).
+            val perfilVm: PerfilViewModel = viewModel()
             ViewPerfil(
+                vm = perfilVm,
                 foto = fotoPerfil,
                 onFotoCambiada = onFotoPerfil,
                 onVolver = { nav.popBackStack() },
+                onCuentaEliminada = {
+                    vm.limpiarTodo()
+                    nav.navigate(AppRoutes.Login.route) {
+                        popUpTo(nav.graph.id) { inclusive = true }
+                    }
+                },
             )
         }
 

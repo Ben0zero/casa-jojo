@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
+import cl.duoc.casajojo.domain.model.EstadoPedido
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,7 +69,7 @@ fun ViewConfirmado(
     fun avisar(mensaje: String) {
         scope.launch { snackbar.showSnackbar(mensaje) }
     }
-    val cancelado = pedido?.estadoPedido == "cancelado"
+    val cancelado = pedido?.estadoPedido == EstadoPedido.Cancelado.codigo
 
     val context = LocalContext.current
     val resumen = buildString {
