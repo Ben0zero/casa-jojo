@@ -32,6 +32,9 @@ import cl.duoc.casajojo.utils.money
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.theme.Ac
 import cl.duoc.casajojo.ui.viewmodels.ClienteViewModel
+import kotlin.math.round
+
+private fun Double.decimal(): String = (round(this * 10) / 10).toString()
 
 /**
  * PASO 3 — Carrito. Misma lógica de siempre: quitar platos, agregar otro
@@ -168,18 +171,26 @@ fun ViewCarrito(
                                         estado.datos != null -> {
                                             estado.datos.items.forEach { item ->
                                                 Text(
-                                                    "${item.ingrediente}: ${item.kcal.toInt()} kcal · " +
-                                                        "P ${item.proteinas} g · C ${item.carbohidratos} g · " +
-                                                        "G ${item.grasas} g",
+                                                    item.ingrediente,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                                Text(
+                                                    "${item.kcal.toInt()} kcal · " +
+                                                        "Proteína ${item.proteinas.decimal()} g · " +
+                                                        "Carbohidrato ${item.carbohidratos.decimal()} g · " +
+                                                        "Grasa ${item.grasas.decimal()} g",
                                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                                     fontSize = 12.sp,
+                                                    modifier = Modifier.padding(bottom = 6.dp),
                                                 )
                                             }
                                             Text(
                                                 "Total: ${estado.datos.total.kcal.toInt()} kcal · " +
-                                                    "P ${estado.datos.total.proteinas} g · " +
-                                                    "C ${estado.datos.total.carbohidratos} g · " +
-                                                    "G ${estado.datos.total.grasas} g",
+                                                    "Proteína ${estado.datos.total.proteinas.decimal()} g · " +
+                                                    "Carbohidrato ${estado.datos.total.carbohidratos.decimal()} g · " +
+                                                    "Grasa ${estado.datos.total.grasas.decimal()} g",
                                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
