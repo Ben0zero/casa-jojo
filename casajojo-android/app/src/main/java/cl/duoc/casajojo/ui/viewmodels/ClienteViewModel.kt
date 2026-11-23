@@ -15,7 +15,9 @@ import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.data.local.entity.Producto
 import cl.duoc.casajojo.data.local.entity.Usuario
 import cl.duoc.casajojo.data.repository.AuthRepository
+import cl.duoc.casajojo.data.repository.NutricionRepository
 import cl.duoc.casajojo.data.repository.PedidoRepository
+import cl.duoc.casajojo.domain.model.NutricionPlato
 import cl.duoc.casajojo.domain.model.PlatoDraft
 import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import kotlinx.coroutines.CancellationException
@@ -30,6 +32,13 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+data class NutricionUiState(
+    val expandido: Boolean = false,
+    val cargando: Boolean = false,
+    val datos: NutricionPlato? = null,
+    val error: String? = null,
+)
 
 /**
  * ViewModel único del flujo del cliente. Lo comparten todas las pantallas
@@ -50,6 +59,7 @@ class ClienteViewModel @JvmOverloads constructor(
         pedidos = db.pedidoDao(),
         transacciones = RoomTransactionRunner(db),
     ),
+    private val nutricionRepo: NutricionRepository = NutricionRepository(),
 ) : AndroidViewModel(app) {
 
     // NUEVO (fase 1): sesión guardada en DataStore y datos del usuario logueado.
@@ -118,6 +128,9 @@ class ClienteViewModel @JvmOverloads constructor(
 
     /** Platos ya armados y agregados al pedido. */
     var cart by mutableStateOf<List<PlatoDraft>>(emptyList())
+        private set
+
+    var nutricionPorPlato by mutableStateOf<Map<PlatoDraft, NutricionUiState>>(emptyMap())
         private set
 
     /** true si el cliente marcó "Solo la proteína, sin acompañamientos". */
@@ -273,7 +286,51 @@ class ClienteViewModel @JvmOverloads constructor(
     /** PASO 3. Quita el plato en la posición indicada. */
     fun quitarPlato(index: Int) {
         if (index in cart.indices) {
+            val plato = cart[index]
             cart = cart.filterIndexed { i, _ -> i != index }
+            nutricionPorPlato = nutricionPorPlato - plato
+        }
+    }
+
+    fun mostrarNutricion(plato: PlatoDraft) {
+        val actual = nutricionPorPlato[plato] ?: NutricionUiState()
+        nutricionPorPlato = nutricionPorPlato + (plato to actual.copy(expandido = true))
+        if (actual.datos == null && !actual.cargando) consultarNutricion(plato)
+    }
+
+    fun ocultarNutricion(plato: PlatoDraft) {
+        val actual = nutricionPorPlato[plato] ?: return
+        nutricionPorPlato = nutricionPorPlato + (plato to actual.copy(expandido = false))
+    }
+
+    fun reintentarNutricion(plato: PlatoDraft) {
+        consultarNutricion(plato, forzar = true)
+    }
+
+    private fun consultarNutricion(plato: PlatoDraft, forzar: Boolean = false) {
+        val actual = nutricionPorPlato[plato] ?: NutricionUiState()
+        if (!forzar && (actual.datos != null || actual.cargando)) return
+        nutricionPorPlato = nutricionPorPlato + (
+            plato to actual.copy(expandido = true, cargando = true, error = null)
+        )
+        viewModelScope.launch {
+            val resultado = try {
+                nutricionRepo.nutricionDe(plato)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            val estado = nutricionPorPlato[plato] ?: NutricionUiState()
+            nutricionPorPlato = nutricionPorPlato + (plato to resultado.fold(
+                onSuccess = { estado.copy(cargando = false, datos = it, error = null) },
+                onFailure = {
+                    estado.copy(
+                        cargando = false,
+                        error = "No se pudo consultar la nutrición",
+                    )
+                },
+            ))
         }
     }
 
@@ -445,5 +502,6 @@ class ClienteViewModel @JvmOverloads constructor(
         acompanamientosSel = emptyList()
         retiro = RetiroUiState()
         cart = emptyList()
+        nutricionPorPlato = emptyMap()
     }
 }
