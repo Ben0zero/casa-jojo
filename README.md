@@ -1,70 +1,207 @@
 # La Casa JoJo
 
-Sistema de autoservicio de menú para **La Casa JoJo SpA** (proyecto Duoc UC, ERS v1.1).
+App Android de autoservicio para **La Casa JoJo SpA**: el cliente arma su menú del día,
+elige la hora de retiro, sigue su pedido y lo retira escaneando el QR de la tienda.
+Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 
-La rama `main` contiene la app Android y el backend Java que la consume:
+**Integrantes:** Nicolás Arancibia, Pablo Gómez y Benjamin González.
 
-| Componente | Carpeta | Stack | Estado |
-| --- | --- | --- | --- |
-| App del cliente | `casajojo-android` | Kotlin + Jetpack Compose + Room/DataStore + Retrofit | Integrada con la API |
-| Microservicios | `microservicios mobil` | Java 21 + Spring Boot + Oracle | Módulos auth, catálogo y ventas adaptados a Casa JoJo |
-| Panel web del ERS | `casajojo-web` | React + Vite + TypeScript | Se conserva, pero no se modificó ni participa en esta integración |
+| Componente | Carpeta | Tecnología |
+|---|---|---|
+| App del cliente (única vista: **cliente**) | `casajojo-android` | Kotlin, Jetpack Compose, MVVM, Room, DataStore, Retrofit |
+| Microservicios propios | `microservicios mobil/casajojo-ms-*` | Java 21, Spring Boot 4, Oracle Cloud (wallet), JWT |
+| Panel web del ERS (fuera de esta entrega) | `casajojo-web` | React + Vite (no se modificó) |
 
-## Arquitectura
+---
 
-- La app usa **API primero**: Retrofit consume los microservicios y guarda en Room/DataStore la sesión, el menú y el último pedido como caché. Si la API no responde, puede seguir operando con esos datos locales.
-- **Auth** (`8081`): login/registro por correo y token JWT.
-- **Catálogo** (`8082`): menú público `/api/menu` con SKU `CJ-*`, tipo de plato, precio y disponibilidad.
-- **Ventas** (`8086`): pedidos con `horaRetiro`, `origen`, items, total, estado y estado de pago. La app usa `POST`, `GET` y `PUT /api/pedidos/{id}/estado`.
-- **API externa**: Open-Meteo entrega el clima actual de Viña del Mar en el Home; es HTTPS, no requiere key y su fallo no afecta el flujo de pedidos.
-- Los módulos `eureka`, `produccion`, `inventario` y `main` se mantienen por compatibilidad con el proyecto original; la app Android **no los consume**.
-- El panel web sigue siendo una pieza separada del ERS; esta entrega no sincroniza su `localStorage` con la app.
+## Funcionalidades
 
-El detalle de endpoints, puertos, ejecución y pruebas está en [`microservicios mobil/README.md`](microservicios%20mobil/README.md).
+**Cuenta**
+- Registro e inicio de sesión por correo, con validación por campo y sesión persistente (DataStore + JWT).
+- **¿Olvidaste tu contraseña?**: correo → código de 6 dígitos (un solo uso, vence en 15 min) → nueva contraseña.
+- **Perfil**: ver y editar nombre y celular, cambiar contraseña (pide la actual), **eliminar cuenta** con diálogo de confirmación y foto de perfil con la cámara.
 
-## Backend
+**Pedido**
+- Armado paso a paso: proteína → acompañamientos (o "solo proteína" a $3.000) → carrito → retiro y pago.
+- Hora de retiro (solo horarios que aún no pasan) y forma de pago (Transferencia / Pagar en tienda).
+- **Mi pedido**: estado sincronizado con ms-ventas; **cancelar** dentro de 15 s (RF-13) y **editar** nombre, hora, forma de pago e indicaciones mientras siga *Recibido* (RF-12).
+- **Retiro con QR** de la tienda (`casajojo://retiro?codigo=...`): el pedido queda Entregado y Pagado.
+- **Historial** de pedidos entregados y cancelados.
+- Envío diferido: si no hay red al confirmar, el pedido queda en Room y se reenvía solo (sin duplicarse).
 
-Requisito: Java 21. Cada módulo trae su wrapper Maven.
+**API externa**: clima actual de Viña del Mar desde **Open-Meteo** en el Inicio, con indicador de carga, mensaje de error y botón *Reintentar*.
+
+**Recursos nativos**: cámara (permiso `CAMERA` en tiempo de ejecución), lector QR (ML Kit), notificaciones locales, compartir pedido y permiso de red local (Android 17).
+
+---
+
+## Endpoints
+
+Todas las rutas propias responden JSON. "JWT" = header `Authorization: Bearer <token>` (la app lo agrega sola).
+
+### Propios — ms-auth (`8081`)
+
+| Método y ruta | Acceso | Uso en la app |
+|---|---|---|
+| `POST /api/auth/register` | público | Crear cuenta (siempre rol CLIENTE) y devolver el token |
+| `POST /api/auth/login` | público | Iniciar sesión por correo |
+| `POST /api/auth/recuperar` | público | Enviar código de recuperación al correo (responde igual exista o no la cuenta) |
+| `POST /api/auth/restablecer` | público | Cambiar la contraseña con `correo`, `codigo` y `nuevaPassword` |
+| `GET /api/usuarios/me` | JWT | Leer el perfil propio |
+| `PUT /api/usuarios/me` | JWT | Editar `nombre` y `telefono` |
+| `PUT /api/usuarios/me/password` | JWT | Cambiar contraseña (`passwordActual`, `nuevaPassword`) |
+| `DELETE /api/usuarios/me` | JWT | Eliminar la cuenta propia (204) |
+
+### Propios — ms-catalogo (`8082`)
+
+| Método y ruta | Acceso | Uso |
+|---|---|---|
+| `GET /api/menu` | público | Menú del día (SKU `CJ-*`, tipo, precio, disponible) |
+| `GET /api/menu/{id}` | público | Un plato |
+| `PUT /api/menu/{id}/disponible` | COCINA/ADMIN | Marcar plato agotado (lo usa la cocina, no la app) |
+
+### Propios — ms-ventas (`8086`)
+
+| Método y ruta | Acceso | Uso en la app |
+|---|---|---|
+| `POST /api/pedidos` | JWT (dueño) | Crear pedido (el servidor recalcula el total; `referencia` evita duplicados) |
+| `GET /api/pedidos/mis-pedidos?correo=` | JWT (dueño) | Listar los pedidos del cliente |
+| `GET /api/pedidos/ultimo?correo=` | JWT (dueño) | Último pedido |
+| `PUT /api/pedidos/{id}` | JWT (dueño) | **Editar** pedido mientras esté RECIBIDO (409 si no) |
+| `PUT /api/pedidos/{id}/estado?estado=CANCELADO` | JWT (dueño) | Cancelar dentro de 15 s (409 fuera de plazo) |
+| `PUT /api/pedidos/{id}/retirar?codigo=` | JWT (dueño) | Retiro con el QR de la tienda (pedido LISTO → ENTREGADO y pagado) |
+| `GET /api/pedidos?estado=` · `PUT /api/pedidos/{id}/estado` · `PUT /api/pedidos/{id}/pagar` | COCINA/ADMIN | Operación de la cocina (fuera de la app; se usa en la demo con `curl`) |
+
+### Externo
+
+| API | Ruta | Uso |
+|---|---|---|
+| Open-Meteo | `GET https://api.open-meteo.com/v1/forecast?latitude=-33.0246&longitude=-71.5518&current=temperature_2m,weather_code,wind_speed_10m&timezone=America/Santiago` | Clima actual en el Inicio. HTTPS, sin API key, cliente Retrofit separado (el JWT nunca se envía). |
+
+Swagger de cada servicio: `http://localhost:<puerto>/swagger-ui.html`.
+
+---
+
+## Cómo ejecutar
+
+### 1. Configurar el `.env`
+
+Copiar `.env.example` como `.env` en la raíz (está en `.gitignore`) y completar Oracle
+(`ORACLE_USERNAME`, `ORACLE_PASSWORD`, `ORACLE_SERVICE`, `TNS_ADMIN` con la carpeta del
+wallet usando `/`), `JWT_SECRET` (≥ 32 caracteres) y, opcionalmente, `SMTP_*`. Sin SMTP,
+la recuperación de contraseña funciona en **modo log**: el código se escribe en la consola
+de ms-auth.
+
+### 2a. Backend con Docker (recomendado)
 
 ```powershell
-cd "microservicios mobil"
-cd MiniMarket-Proyecto-ms-auth
-.\mvnw.cmd spring-boot:run
-
-# En otras terminales:
-cd MiniMarket-Proyecto-ms-catalogoProductos
-.\mvnw.cmd spring-boot:run
-
-cd MiniMarket-Proyecto-ms-ventas
-.\mvnw.cmd spring-boot:run
+docker compose up -d --build     # ms-auth 8081, ms-catalogo 8082, ms-ventas 8086
+docker compose logs -f ms-auth   # aquí aparece el código de recuperación en modo log
+docker compose down
 ```
 
-Los `application.properties` no guardan contraseñas: toman `TNS_ADMIN` y `ORACLE_PASSWORD` del entorno (con `ORACLE_USERNAME`/`ORACLE_SERVICE` opcionales). **Los wallets no están en el repositorio** por ser credenciales; hay que configurarlos localmente antes de iniciar los servicios o ejecutar el test de carga de contexto.
+`docker-compose.yml` lee el `.env`, monta el wallet de `TNS_ADMIN` como **volumen de solo
+lectura** en `/wallet` y expone los puertos. Las imágenes se compilan con Maven dentro del
+contenedor (no hace falta Java en el equipo).
 
-Para la demo se incluye `scripts/demo-oracle.ps1`: lee un `.env` local (ignorado por Git) con `ORACLE_USERNAME`, `ORACLE_PASSWORD`, `ORACLE_SERVICE=clases_high` y `TNS_ADMIN`, y arranca auth, catálogo y ventas. En Windows, `TNS_ADMIN` debe usar barras normales (`C:/Users/ben95/.elvolcan/OracleWallet`); con `\` el driver Oracle falla con `ORA-12261`. Con las credenciales locales correctas, `LoginAuthApplicationTests` pasa y Hibernate escribe en Oracle.
+### 2b. Backend sin Docker
 
-## Móvil
+Requiere Java 21. `scripts/demo-oracle.ps1` lee el `.env` y abre los tres servicios:
 
-Requisitos: Android 8.0 (API 26) o superior.
+```powershell
+.\scripts\demo-oracle.ps1
+```
+
+O a mano, cada uno en su terminal (con las variables del `.env` cargadas):
+
+```powershell
+cd "microservicios mobil\casajojo-ms-auth";     .\mvnw.cmd spring-boot:run
+cd "microservicios mobil\casajojo-ms-catalogo"; .\mvnw.cmd spring-boot:run
+cd "microservicios mobil\casajojo-ms-ventas";   .\mvnw.cmd spring-boot:run
+```
+
+### 3. App Android
+
+Abrir `casajojo-android` en Android Studio (AGP 9.3) y ejecutar `app`, o por terminal:
 
 ```powershell
 cd casajojo-android
-.\gradlew.bat assembleRelease      # APK firmado en app\build\outputs\apk\release\
-.\gradlew.bat testDebugUnitTest    # 49 tests unitarios
-.\gradlew.bat jacocoTestReportCore # cobertura de la lógica (83,3% de líneas)
-.\gradlew.bat jacocoVerificar80    # verifica el umbral de 80%
+.\gradlew assembleDebug                          # emulador (10.0.2.2)
+.\gradlew assembleRelease -PapiHost=192.168.1.20 # celular real: IP del notebook
 ```
 
-Por defecto la app apunta a `http://10.0.2.2:<puerto>/` (emulador). El host se define con `API_HOST` en `casajojo-android/app/build.gradle.kts`; para un dispositivo físico se reemplaza por la IP de la PC en la misma red.
+El host de los microservicios se toma de `-PapiHost`, de `casajojo.apiHost` en
+`local.properties` o, por defecto, `10.0.2.2` (la PC vista desde el emulador). Aplica a
+debug y release; el `network_security_config` permite HTTP hacia esa IP de la red local.
 
-El release usa `app/keystore/casajojo-release.jks` (keystore de demostración incluido para que un clone limpio pueda compilar). Los passwords pueden sobreescribirse desde `local.properties` o variables de entorno. El APK generado está firmado con el esquema v2 y verificado con `apksigner`.
+Paso a paso de la presentación (hotspot, IP, firewall, QR y plan B): **[docs/DEMO.md](docs/DEMO.md)**.
 
-Flujo: portada → proteína → acompañamientos → carrito → retiro y pago → confirmación con número de pedido → consulta y cambio de estado en “Mi pedido” (`PUT` a Oracle). El Home muestra además el clima de Viña del Mar desde Open-Meteo.
+### APK firmado y keystore
 
-## Decisiones y alcance
+| Archivo | Ubicación |
+|---|---|
+| APK release firmado (apunta a `10.0.2.2`) | `casajojo-android/apk/CasaJojo-release.apk` |
+| Keystore (`.jks`) | `casajojo-android/app/keystore/casajojo-release.jks` |
+| Configuración de firma | `casajojo-android/keystore.properties` → `signingConfigs.release` en `app/build.gradle.kts` |
 
-- Login (RNF-04) queda cubierto por el microservicio de auth.
-- Se mantienen Room/DataStore como caché, no como única fuente de datos.
-- El descuento del 2% (RF-16) sigue fuera de alcance; la doble proteína (RF-04) se omitió por el criterio de aceptación C-01.
-- La conexión Oracle quedó verificada con el test de contexto de auth (`LoginAuthApplicationTests`, 1 test, 0 errores). El `ORA-01017` inicial era configuración: se resolvió con las credenciales del entorno local y `TNS_ADMIN` con barras `/`. Ningún secreto quedó versionado.
-- La cobertura unitaria se mide sobre la lógica verificable con JUnit (repositorios, dominio y DTO): 83,3% de líneas. La UI Compose se valida en emulador y se excluye de ese porcentaje.
+Firma v2 verificada con `apksigner verify --print-certs` (CN=La Casa JoJo, O=La Casa JoJo SpA, RSA 2048).
+El keystore y sus contraseñas se versionan **solo porque la rúbrica lo exige**; en un
+proyecto real irían en un gestor de secretos.
+
+---
+
+## Almacenamiento local vs externo
+
+| Dónde | Qué guarda | Por qué |
+|---|---|---|
+| **Room** (SQLite en el teléfono) | `productos` (copia del menú), `pedidos` + `platos` (con `remotoId` y `referencia` UUID), `usuarios` (nombre, correo, celular y hash PBKDF2 + salt de la contraseña) | Datos **estructurados y relacionales** que la app consulta con filtros (historial por estado, pedido en curso) y que deben seguir disponibles **sin red**. Permite crear un pedido offline y reenviarlo después sin duplicarlo. |
+| **DataStore Preferences** | `usuario_id` de la sesión, `ultimo_correo` y el token JWT | Son **pocos valores clave-valor** de configuración/sesión. DataStore es asíncrono y transaccional (no bloquea la UI como SharedPreferences) y no necesita tablas. Nunca guarda contraseñas. |
+| **Archivo privado** (`filesDir`) | Foto de perfil | Un binario grande no corresponde a Room ni a DataStore. |
+| **Oracle Cloud** (vía microservicios) | Cuentas y roles (`usuarios`, `roles`), códigos de recuperación (`cj_codigos_recuperacion`, solo hash), menú (`productos` CJ-*), pedidos (`pedidos_casajojo` + detalle) | Es la **fuente de verdad compartida**: la cocina ve los pedidos de todos los clientes, el estado lo cambia la cocina, las contraseñas se validan en el servidor (BCrypt) y una cuenta sirve en cualquier teléfono. |
+
+Estrategia **API primero, caché después**: los Repository llaman a los microservicios y
+reflejan la respuesta en Room; si el servidor no responde, la app sigue con la copia local.
+El clima (Open-Meteo) no se guarda: es un dato del momento.
+
+---
+
+## Programación orientada a objetos
+
+- **Herencia + polimorfismo — `EstadoPedido`** (`domain/model/EstadoPedido.kt`): clase sellada con `Recibido`, `EnPreparacion`, `Listo`, `Entregado` y `Cancelado`. Cada estado implementa `etiqueta()`, `color()`, `siguiente()` y sobrescribe `puedeCancelar()`, `puedeEditar()` o `puedeRetirarConQr()` solo donde aplica. `ReglasPedido`, la línea de estado y las píldoras de la UI le preguntan al objeto en vez de comparar textos.
+- **`FormaPago`** (`domain/model/FormaPago.kt`): `Transferencia` y `PagarEnTienda` con `pagaAlRetirar()` y `descripcion()`.
+- **Jerarquía de excepciones** (`domain/error/CasaJojoException.kt`): `CasaJojoException` (sellada) → `ValidacionException` (con el campo afectado), `RedException` y `ServidorException` → `SesionExpiradaException`, `SinPermisoException`, `NoEncontradoException`, `ConflictoException`. `reintentable` es polimórfico. `ErroresRemotos` traduce HTTP/IO a esta jerarquía en los Repository y la UI muestra `mensajeUsuario` (bajo el campo o en Snackbar).
+- **Interfaces e inyección**: `TransactionRunner` (Room vs. pruebas), `AvisosPedido` (notificaciones reales vs. mock), `EnviadorCorreo` en ms-auth (`EnviadorCorreoSmtp` / `EnviadorCorreoLog`).
+- **Encapsulamiento**: los ViewModel exponen `StateFlow` de solo lectura y `private set`; las reglas viven en `domain` (Kotlin puro).
+
+## Pruebas y cobertura
+
+```powershell
+cd casajojo-android
+.\gradlew testDebugUnitTest      # 164 pruebas (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
+.\gradlew jacocoTestReportCore   # reporte HTML/XML en app/build/reports/jacoco/jacocoTestReportCore/
+.\gradlew jacocoVerificar80      # falla si la cobertura de líneas baja de 80%
+```
+
+**Cobertura JaCoCo de ViewModel + Repository + domain: 91,7% de líneas** (1162/1267;
+88,2% de instrucciones). Se excluyen las pantallas Compose, DAO/Room/DataStore generados,
+Retrofit y utilidades de Android, que se validan en el emulador.
+
+Todos los ViewModel (`AuthViewModel`, `ClienteViewModel`, `PerfilViewModel`,
+`ClimaViewModel`) y Repository (`AuthRepository`, `PedidoRepository`, `ClimaRepository`)
+tienen pruebas, incluidas la recuperación de contraseña, el perfil, la edición de pedidos,
+el reintento del clima y la traducción de errores.
+
+Microservicios (JUnit 5 + Mockito, sin Oracle):
+
+```powershell
+cd "microservicios mobil\casajojo-ms-auth"; .\mvnw.cmd test -Dtest='!LoginAuthApplicationTests'
+```
+
+(ídem en `casajojo-ms-catalogo` y `casajojo-ms-ventas` con `!*ApplicationTests`; los tests de
+contexto necesitan Oracle).
+
+## Alcance
+
+- Acordado con el profesor: la app tiene **solo la vista cliente**. Los cambios de la cocina
+  (EN_PREPARACION, LISTO) se hacen con la cuenta de demostración `cocina@casajojo.cl` vía API.
+- Fuera de alcance: descuento del 2% (RF-16) y doble proteína (RF-04, criterio C-01).

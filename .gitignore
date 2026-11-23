@@ -23,3 +23,9 @@ Thumbs.db
 # Secretos locales de la demo (Oracle). NO subir.
 .env
 *.env
+
+# Llaves de firma: solo se versiona el keystore del APK de entrega (exigido por la rúbrica).
+*.jks
+*.keystore
+!casajojo-android/app/keystore/casajojo-release.jks
+!app/keystore/casajojo-release.jks
