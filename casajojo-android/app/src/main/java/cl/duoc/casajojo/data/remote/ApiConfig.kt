@@ -16,4 +16,6 @@ object ApiConfig {
 
     /** API externa (Open-Meteo): HTTPS y sin API key. No es un microservicio propio. */
     const val CLIMA_URL = "https://api.open-meteo.com/"
+
+    const val NUTRICION_URL = "https://world.openfoodfacts.org/"
 }
