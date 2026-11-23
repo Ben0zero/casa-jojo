@@ -814,3 +814,44 @@ Ordenados por prioridad.
 25. **Ramas inalcanzables en `utils/Formato.kt`**: `preparacion`, `listo`, `no_pagado` nunca se generan en la app (pensadas para el panel web).
 26. **`@TypeConverters(Converters::class)` duplicado** en `Plato.kt` (ya está declarado en `CasaJojoDatabase`).
 27. **KDoc de `ui/App.kt`**: el mapa ASCII no muestra `home → mi_pedido` ("Ver mis pedidos") ni los accesos al carrito desde `BarraSuperior`.
+
+---
+
+## 13. APIs externas
+
+La app consume dos APIs públicas, además de los microservicios propios. Ambas van por
+**HTTPS**, no piden API key y usan clientes Retrofit/OkHttp **separados** de los
+microservicios: el `AuthInterceptor` (JWT) solo se agrega al host de nuestros servicios, así
+el token nunca sale hacia terceros. Si una API externa falla, la pantalla muestra el error
+con **Reintentar** y el flujo de pedidos sigue igual (no tocan Room ni los microservicios).
+
+| API | Dónde se ve | Endpoint | Clases |
+|---|---|---|---|
+| **Open-Meteo** | Inicio: clima actual de Viña del Mar | `GET https://api.open-meteo.com/v1/forecast?latitude=-33.0246&longitude=-71.5518&current=temperature_2m,weather_code,wind_speed_10m&timezone=America/Santiago` | `ClimaApi`, `ClimaDto`, `ClimaRepository`, `ClimaViewModel` |
+| **Open Food Facts** | Carrito: información nutricional de cada plato | `GET https://world.openfoodfacts.org/api/v3/product/{codigo}?fields=product_name,brands,nutriments` | `OpenFoodFactsApi`, `ProductoOffDto`, `NutricionRepository`, `Nutricion` (modelo), estado `NutricionUiState` en `ClienteViewModel` |
+
+### 13.1 Cómo funciona Open Food Facts
+
+1. **Qué es:** una base de datos abierta y colaborativa de alimentos; cada producto se
+   identifica por su código de barras y trae sus `nutriments` (valores por 100 g).
+2. **Mapeo:** `NutricionRepository` asocia cada proteína y acompañamiento del menú
+   (Pollo asado, Arroz, Puré…) a un código de barras de un producto de referencia.
+3. **Consulta:** al tocar "ver nutrición" en un plato del Carrito, `ClienteViewModel`
+   llama a `nutricionDe(plato)`; el repositorio pide cada ingrediente a
+   `/api/v3/product/{codigo}` solo con los campos `product_name`, `brands` y `nutriments`.
+4. **Resultado:** lee kcal, proteínas, carbohidratos y grasas por 100 g de cada
+   ingrediente y calcula el **total** del plato (`NutricionPlato`).
+5. **Robustez:** caché en memoria por código (no repite consultas), reintento con espera
+   ante 429/5xx, y si un ingrediente no tiene datos devuelve `Result.failure`: la UI
+   muestra "No se pudo consultar la nutrición" con **Reintentar**.
+6. **Cliente propio:** `RetrofitInstance.clienteOff` agrega el `User-Agent` que exige Open
+   Food Facts, usa timeouts más largos y **no** lleva el interceptor JWT.
+7. **Pruebas:** `NutricionRepositoryTest` (suma, sin producto, sin red, 403, reintento 503,
+   caché) y `ClienteViewModelTest` (mostrar/ocultar, error y reintento, quitar plato).
+
+### 13.2 Pregunta probable
+
+**¿Por qué Open Food Facts no usa el mismo cliente que los microservicios?** Porque ese
+cliente agrega el token JWT del usuario; enviarlo a una API de terceros sería filtrar una
+credencial. Además Open Food Facts necesita otro `User-Agent` y timeouts más largos.
+

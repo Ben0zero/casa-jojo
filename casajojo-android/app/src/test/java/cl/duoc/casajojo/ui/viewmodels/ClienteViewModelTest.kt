@@ -8,6 +8,9 @@ import cl.duoc.casajojo.data.local.entity.Producto
 import cl.duoc.casajojo.data.local.entity.Usuario
 import cl.duoc.casajojo.data.remote.dto.PedidoResponseDto
 import cl.duoc.casajojo.data.repository.AuthRepository
+import cl.duoc.casajojo.data.repository.NutricionRepository
+import cl.duoc.casajojo.domain.model.NutricionItem
+import cl.duoc.casajojo.domain.model.NutricionPlato
 import cl.duoc.casajojo.data.repository.PedidoRepository
 import cl.duoc.casajojo.domain.error.ConflictoException
 import cl.duoc.casajojo.domain.error.ValidacionException
@@ -48,6 +51,7 @@ class ClienteViewModelTest {
     private val sesion = mockk<SesionPreferences>(relaxed = true)
     private val authRepo = mockk<AuthRepository>(relaxed = true)
     private val avisos = mockk<AvisosPedido>(relaxed = true)
+    private val nutricion = mockk<NutricionRepository>()
     private var hora = LocalTime.of(11, 0)
 
     private val pollo = Producto(1, "Pollo asado", 4800, Producto.TIPO_PROTEINA)
@@ -79,7 +83,7 @@ class ClienteViewModelTest {
     @After
     fun limpiar() = Dispatchers.resetMain()
 
-    private fun vm() = ClienteViewModel(app, repo, sesion, authRepo, avisos, ahora = { hora })
+    private fun vm() = ClienteViewModel(app, repo, sesion, authRepo, avisos, ahora = { hora }, nutricionRepo = nutricion)
 
     /** Activa un StateFlow con WhileSubscribed y devuelve su valor actual. */
     private fun <T> observar(flujo: Flow<T>, valor: () -> T): T {
@@ -326,5 +330,81 @@ class ClienteViewModelTest {
         vm.cart.shouldBeEmpty()
         vm.ultimoNumero.shouldBeNull()
         vm.edicion.abierta.shouldBeFalse()
+    }
+
+    // ---------- Nutrición con Open Food Facts (API externa) ----------
+
+    private val platoPollo = PlatoDraft("Pollo asado", 4800, solo = false, acompanamientos = listOf("Arroz"))
+    private val datosPollo = NutricionPlato(
+        items = listOf(NutricionItem("Pollo asado", "Pollo", 200.0, 25.0, 0.0, 10.0)),
+        total = NutricionItem("Total", "", 200.0, 25.0, 0.0, 10.0),
+    )
+
+    @Test
+    fun `mostrar nutricion consulta una sola vez y guarda los datos`() {
+        coEvery { nutricion.nutricionDe(platoPollo) } returns Result.success(datosPollo)
+        val vm = vm()
+
+        vm.mostrarNutricion(platoPollo)
+        val estado = vm.nutricionPorPlato.getValue(platoPollo)
+        estado.expandido.shouldBeTrue()
+        estado.cargando.shouldBeFalse()
+        estado.datos shouldBe datosPollo
+        estado.error.shouldBeNull()
+
+        vm.ocultarNutricion(platoPollo)
+        vm.nutricionPorPlato.getValue(platoPollo).expandido.shouldBeFalse()
+        vm.mostrarNutricion(platoPollo) // ya tiene datos: no vuelve a consultar
+        coVerify(exactly = 1) { nutricion.nutricionDe(platoPollo) }
+    }
+
+    @Test
+    fun `si Open Food Facts falla muestra el error y reintentar vuelve a consultar`() {
+        coEvery { nutricion.nutricionDe(platoPollo) } returnsMany listOf(
+            Result.failure(IllegalStateException("sin datos")),
+            Result.success(datosPollo),
+        )
+        val vm = vm()
+
+        vm.mostrarNutricion(platoPollo)
+        vm.nutricionPorPlato.getValue(platoPollo).error shouldBe "No se pudo consultar la nutrición"
+
+        vm.reintentarNutricion(platoPollo)
+        vm.nutricionPorPlato.getValue(platoPollo).datos shouldBe datosPollo
+        vm.nutricionPorPlato.getValue(platoPollo).error.shouldBeNull()
+        coVerify(exactly = 2) { nutricion.nutricionDe(platoPollo) }
+    }
+
+    @Test
+    fun `una excepcion inesperada del repositorio tambien se muestra como error`() {
+        coEvery { nutricion.nutricionDe(any()) } throws IllegalArgumentException("x")
+        val vm = vm()
+        vm.mostrarNutricion(platoPollo)
+        vm.nutricionPorPlato.getValue(platoPollo).error shouldBe "No se pudo consultar la nutrición"
+    }
+
+    @Test
+    fun `ocultar un plato sin consulta no hace nada`() {
+        val vm = vm()
+        vm.ocultarNutricion(platoPollo)
+        vm.nutricionPorPlato shouldBe emptyMap()
+    }
+
+    @Test
+    fun `quitar un plato o limpiar todo descarta su nutricion`() {
+        coEvery { nutricion.nutricionDe(any()) } returns Result.success(datosPollo)
+        val vm = vm()
+        armarCarrito(vm)
+        val plato = vm.cart.single()
+        vm.mostrarNutricion(plato)
+        vm.nutricionPorPlato.containsKey(plato).shouldBeTrue()
+
+        vm.quitarPlato(0)
+        vm.nutricionPorPlato.containsKey(plato).shouldBeFalse()
+
+        armarCarrito(vm)
+        vm.mostrarNutricion(vm.cart.single())
+        vm.limpiarTodo()
+        vm.nutricionPorPlato shouldBe emptyMap()
     }
 }

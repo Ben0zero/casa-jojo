@@ -33,6 +33,7 @@ internal val Bad = Color(0xFFC53030)
 /** Tonos extra usados por las tarjetas, los degradados y los estados. */
 internal val VerdeOscuro = Color(0xFF006B41)
 internal val VerdeSuave = Color(0xFFDFF3E4)
+internal val FondoNoche = Color(0xFF06140E)
 internal val Amarillo = Gold
 internal val VerdeListo = Color(0xFF008A55)
 internal val FotoFondo = Color(0xFFE8F5EA)

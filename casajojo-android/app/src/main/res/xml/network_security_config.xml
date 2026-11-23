@@ -3,7 +3,8 @@
     EFT (Fase A): los microservicios de la demo corren por HTTP en la red local
     (10.0.2.2 en el emulador o la IP de la PC en el hotspot del celular, definida con
     -PapiHost). Como esa IP cambia en cada red, se permite HTTP sin cifrar también en
-    release. Open-Meteo sigue usando HTTPS. En producción esto debe cambiarse a HTTPS.
+    release. Las APIs externas (Open-Meteo y Open Food Facts) usan HTTPS, que siempre
+    está permitido con los certificados del sistema. En producción todo debería ir por HTTPS.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true" />

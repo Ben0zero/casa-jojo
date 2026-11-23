@@ -29,7 +29,9 @@ Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 - **Historial** de pedidos entregados y cancelados.
 - Envío diferido: si no hay red al confirmar, el pedido queda en Room y se reenvía solo (sin duplicarse).
 
-**API externa**: clima actual de Viña del Mar desde **Open-Meteo** en el Inicio, con indicador de carga, mensaje de error y botón *Reintentar*.
+**APIs externas**
+- **Open-Meteo**: clima actual de Viña del Mar en el Inicio, con indicador de carga, mensaje de error y botón *Reintentar*.
+- **Open Food Facts**: en el Carrito, cada plato muestra su información nutricional (kcal, proteínas, carbohidratos y grasas por 100 g de cada ingrediente y el total), con carga, error y *Reintentar*.
 
 **Recursos nativos**: cámara (permiso `CAMERA` en tiempo de ejecución), lector QR (ML Kit), notificaciones locales, compartir pedido y permiso de red local (Android 17).
 
@@ -77,6 +79,15 @@ Todas las rutas propias responden JSON. "JWT" = header `Authorization: Bearer <t
 | API | Ruta | Uso |
 |---|---|---|
 | Open-Meteo | `GET https://api.open-meteo.com/v1/forecast?latitude=-33.0246&longitude=-71.5518&current=temperature_2m,weather_code,wind_speed_10m&timezone=America/Santiago` | Clima actual en el Inicio. HTTPS, sin API key, cliente Retrofit separado (el JWT nunca se envía). |
+| Open Food Facts | `GET https://world.openfoodfacts.org/api/v3/product/{codigo}?fields=product_name,brands,nutriments` | Nutrición de los platos del Carrito. HTTPS, sin API key, cliente OkHttp **propio sin AuthInterceptor** y con `User-Agent` de la app (lo pide Open Food Facts). |
+
+**Cómo funciona Open Food Facts en la app:** Open Food Facts es una base de datos pública
+y colaborativa de alimentos. `NutricionRepository` tiene asociado un código de barras de
+referencia a cada proteína y acompañamiento del menú; al tocar "ver nutrición" en el
+Carrito, consulta cada ingrediente del plato (`/api/v3/product/{codigo}`, pidiendo solo
+nombre, marca y `nutriments`), lee kcal, proteínas, carbohidratos y grasas por 100 g y
+suma el total. Las respuestas quedan en una caché en memoria, se reintenta ante 429/5xx
+y, si falla, el Carrito muestra el error con *Reintentar* sin afectar el pedido.
 
 Swagger de cada servicio: `http://localhost:<puerto>/swagger-ui.html`.
 
@@ -161,7 +172,9 @@ proyecto real irían en un gestor de secretos.
 
 Estrategia **API primero, caché después**: los Repository llaman a los microservicios y
 reflejan la respuesta en Room; si el servidor no responde, la app sigue con la copia local.
-El clima (Open-Meteo) no se guarda: es un dato del momento.
+El clima (Open-Meteo) no se guarda: es un dato del momento. La nutrición (Open Food Facts)
+solo se guarda en una caché en memoria mientras la app está abierta: es información de
+referencia que no cambia el pedido.
 
 ---
 
@@ -177,19 +190,20 @@ El clima (Open-Meteo) no se guarda: es un dato del momento.
 
 ```powershell
 cd casajojo-android
-.\gradlew testDebugUnitTest      # 164 pruebas (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
+.\gradlew testDebugUnitTest      # 175 pruebas (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
 .\gradlew jacocoTestReportCore   # reporte HTML/XML en app/build/reports/jacoco/jacocoTestReportCore/
 .\gradlew jacocoVerificar80      # falla si la cobertura de líneas baja de 80%
 ```
 
-**Cobertura JaCoCo de ViewModel + Repository + domain: 91,7% de líneas** (1162/1267;
-88,2% de instrucciones). Se excluyen las pantallas Compose, DAO/Room/DataStore generados,
+**Cobertura JaCoCo de ViewModel + Repository + domain: 92,0% de líneas** (1282/1393;
+88,5% de instrucciones). Se excluyen las pantallas Compose, DAO/Room/DataStore generados,
 Retrofit y utilidades de Android, que se validan en el emulador.
 
 Todos los ViewModel (`AuthViewModel`, `ClienteViewModel`, `PerfilViewModel`,
-`ClimaViewModel`) y Repository (`AuthRepository`, `PedidoRepository`, `ClimaRepository`)
+`ClimaViewModel`) y Repository (`AuthRepository`, `PedidoRepository`, `ClimaRepository`,
+`NutricionRepository`)
 tienen pruebas, incluidas la recuperación de contraseña, el perfil, la edición de pedidos,
-el reintento del clima y la traducción de errores.
+el reintento del clima, el estado de nutrición del Carrito y la traducción de errores.
 
 Microservicios (JUnit 5 + Mockito, sin Oracle):
 

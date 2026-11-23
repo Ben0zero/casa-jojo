@@ -31,8 +31,8 @@ Funcionalidades, endpoints, almacenamiento local vs. externo, POO y cobertura es
 cl.duoc.casajojo/
 ├── data/
 │   ├── local/        Room (entidades, DAO, migraciones), DataStore (sesión) y foto de perfil
-│   ├── remote/       Retrofit: AuthApi, MenuApi, PedidoApi, ClimaApi (Open-Meteo), DTO y ErroresRemotos
-│   └── repository/   AuthRepository, PedidoRepository, ClimaRepository (API primero, caché después)
+│   ├── remote/       Retrofit: AuthApi, MenuApi, PedidoApi, ClimaApi (Open-Meteo), OpenFoodFactsApi, DTO y ErroresRemotos
+│   └── repository/   AuthRepository, PedidoRepository, ClimaRepository, NutricionRepository
 ├── domain/
 │   ├── error/        Jerarquía CasaJojoException
 │   ├── model/        EstadoPedido y FormaPago (clases selladas), PlatoDraft
@@ -48,7 +48,7 @@ cl.duoc.casajojo/
 ## Pruebas
 
 ```powershell
-.\gradlew testDebugUnitTest       # 164 pruebas
-.\gradlew jacocoTestReportCore    # 91,7% de líneas en ViewModel + Repository + domain
+.\gradlew testDebugUnitTest       # 175 pruebas
+.\gradlew jacocoTestReportCore    # 92,0% de líneas en ViewModel + Repository + domain
 .\gradlew jacocoVerificar80       # umbral de 80%
 ```

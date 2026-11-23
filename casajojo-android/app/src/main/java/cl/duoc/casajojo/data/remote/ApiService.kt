@@ -2,6 +2,7 @@ package cl.duoc.casajojo.data.remote
 
 import cl.duoc.casajojo.data.remote.dto.ActualizarPerfilDto
 import cl.duoc.casajojo.data.remote.dto.CambiarPasswordDto
+import cl.duoc.casajojo.data.remote.dto.RespuestaProductoOff
 import cl.duoc.casajojo.data.remote.dto.ClimaDto
 import cl.duoc.casajojo.data.remote.dto.LoginRequestDto
 import cl.duoc.casajojo.data.remote.dto.MensajeDto
@@ -107,4 +108,16 @@ interface ClimaApi {
         @Query("current") current: String,
         @Query("timezone") timezone: String,
     ): ClimaDto
+}
+
+/**
+ * API externa: Open Food Facts (base de datos pública de alimentos). Se consulta
+ * por código de barras y solo se piden los campos necesarios. Sin autenticación.
+ */
+interface OpenFoodFactsApi {
+    @GET("api/v3/product/{codigo}")
+    suspend fun producto(
+        @Path("codigo") codigo: String,
+        @Query("fields") campos: String = "product_name,brands,nutriments",
+    ): Response<RespuestaProductoOff>
 }

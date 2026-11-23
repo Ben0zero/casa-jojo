@@ -36,9 +36,29 @@ object RetrofitInstance {
             .build()
     }
 
-    private fun retrofit(baseUrl: String): Retrofit = Retrofit.Builder()
+    /**
+     * API externa Open Food Facts: cliente SEPARADO y SIN AuthInterceptor (es una API
+     * pública; el JWT nunca debe salir de nuestros microservicios). Open Food Facts pide
+     * un User-Agent que identifique a la app, y responde más lento: timeouts mayores.
+     */
+    private val clienteOff: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor { cadena ->
+                cadena.proceed(
+                    cadena.request().newBuilder()
+                        .header("User-Agent", "CasaJojo/1.0 (contacto@casajojo.cl)")
+                        .build()
+                )
+            }
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private fun retrofit(baseUrl: String, cliente: OkHttpClient = clienteHttp): Retrofit = Retrofit.Builder()
         .baseUrl(baseUrl)
-        .client(clienteHttp)
+        .client(cliente)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
@@ -48,4 +68,9 @@ object RetrofitInstance {
 
     /** API externa: cliente separado, HTTPS y sin token. */
     val climaApi: ClimaApi by lazy { retrofit(ApiConfig.CLIMA_URL).create(ClimaApi::class.java) }
+
+    /** API externa: información nutricional de cada ingrediente (HTTPS, sin token). */
+    val openFoodFactsApi: OpenFoodFactsApi by lazy {
+        retrofit(ApiConfig.NUTRICION_URL, clienteOff).create(OpenFoodFactsApi::class.java)
+    }
 }

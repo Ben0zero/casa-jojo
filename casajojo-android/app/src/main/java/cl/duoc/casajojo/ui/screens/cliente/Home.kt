@@ -4,6 +4,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +69,7 @@ fun ViewHome(
     // API externa (Open-Meteo): estado separado del ViewModel del pedido.
     val climaVm: ClimaViewModel = viewModel()
     val clima by climaVm.estado.collectAsState()
+    val oscuro = isSystemInDarkTheme()
 
     // Los 6 platos reales (Room/API). Si aún no cargó, usamos el seed local.
     val antojos = proteinas.take(6).map { it.nombre to it.disponible }.ifEmpty {
@@ -198,7 +200,7 @@ fun ViewHome(
                     Column(Modifier.weight(1f)) {
                         Text(
                             "Viña del Mar ahora",
-                            color = Mut,
+                            color = if (oscuro) Color.White else Mut,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                         )
@@ -211,7 +213,12 @@ fun ViewHome(
                         }
                         Text(
                             detalleClima,
-                            color = if (clima.fallo) MaterialTheme.colorScheme.error else VerdeOscuro,
+                            // Error en rojo; si no, el color del tema (claro u oscuro).
+                            color = when {
+                                clima.fallo -> MaterialTheme.colorScheme.error
+                                oscuro -> Color.White
+                                else -> VerdeOscuro
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                         )
@@ -220,7 +227,7 @@ fun ViewHome(
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
-                            color = VerdeOscuro,
+                            color = if (oscuro) Color.White else VerdeOscuro,
                         )
                     } else if (clima.fallo) {
                         TextButton(onClick = climaVm::cargar) { Text("Reintentar") }
@@ -256,12 +263,17 @@ fun ViewHome(
                     shadowElevation = 2.dp,
                 ) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("2x1", fontSize = 24.sp, fontWeight = FontWeight.Black, color = VerdeOscuro)
+                        Text(
+                            "2x1",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (oscuro) Color.White else VerdeOscuro,
+                        )
                         Text(
                             "en acompañamientos",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4A3600),
+                            color = if (oscuro) Gold else Color(0xFF4A3600),
                         )
                     }
                 }
@@ -272,12 +284,17 @@ fun ViewHome(
                     shadowElevation = 2.dp,
                 ) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("Sin fila", fontSize = 19.sp, fontWeight = FontWeight.Black, color = VerdeOscuro)
+                        Text(
+                            "Sin fila",
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (oscuro) Gold else VerdeOscuro,
+                        )
                         Text(
                             "retira a tu hora",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Ac,
+                            color = if (oscuro) Color.White else Ac,
                         )
                     }
                 }

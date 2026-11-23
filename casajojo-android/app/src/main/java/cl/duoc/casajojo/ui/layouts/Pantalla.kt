@@ -1,6 +1,7 @@
 package cl.duoc.casajojo.ui.layouts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,11 +21,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import cl.duoc.casajojo.ui.theme.Ac
+import cl.duoc.casajojo.ui.theme.FondoNoche
 import cl.duoc.casajojo.ui.theme.Gold
 
 /**
  * Plantilla común de todas las pantallas del cliente.
- * - Arriba, contenido con scroll sobre un fondo crema con degradado suave.
+ * - Arriba, contenido con scroll sobre un degradado suave: crema en claro y verde casi negro en oscuro.
  * - Abajo (opcional), una barra fija elevada con el botón principal.
  *
  * La firma no cambia: ninguna pantalla ni ViewModel necesita saber que el
@@ -35,12 +37,16 @@ fun Pantalla(
     bar: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    val claro = !isSystemInDarkTheme()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFFE4F3E8), MaterialTheme.colorScheme.background),
+                    listOf(
+                        if (claro) Color(0xFFE4F3E8) else FondoNoche,
+                        MaterialTheme.colorScheme.background,
+                    ),
                 ),
             ),
     ) {
