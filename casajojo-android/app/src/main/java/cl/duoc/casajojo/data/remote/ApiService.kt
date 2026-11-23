@@ -1,6 +1,6 @@
 package cl.duoc.casajojo.data.remote
 
-import cl.duoc.casajojo.data.remote.dto.BusquedaOff
+import cl.duoc.casajojo.data.remote.dto.RespuestaProductoOff
 import cl.duoc.casajojo.data.remote.dto.ClimaDto
 import cl.duoc.casajojo.data.remote.dto.LoginRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoRequestDto
@@ -67,13 +67,9 @@ interface ClimaApi {
 }
 
 interface OpenFoodFactsApi {
-    @GET("cgi/search.pl")
-    suspend fun buscar(
-        @Query("search_terms") termino: String,
-        @Query("search_simple") simple: Int = 1,
-        @Query("action") accion: String = "process",
-        @Query("json") json: Int = 1,
-        @Query("page_size") size: Int = 1,
+    @GET("api/v3/product/{codigo}")
+    suspend fun producto(
+        @Path("codigo") codigo: String,
         @Query("fields") campos: String = "product_name,brands,nutriments",
-    ): Response<BusquedaOff>
+    ): Response<RespuestaProductoOff>
 }
