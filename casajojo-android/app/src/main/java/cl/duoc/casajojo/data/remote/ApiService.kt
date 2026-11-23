@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.data.remote
 
+import cl.duoc.casajojo.data.remote.dto.BusquedaOff
 import cl.duoc.casajojo.data.remote.dto.ClimaDto
 import cl.duoc.casajojo.data.remote.dto.LoginRequestDto
 import cl.duoc.casajojo.data.remote.dto.PedidoRequestDto
@@ -7,6 +8,7 @@ import cl.duoc.casajojo.data.remote.dto.PedidoResponseDto
 import cl.duoc.casajojo.data.remote.dto.PlatoMenuDto
 import cl.duoc.casajojo.data.remote.dto.RegistroRequestDto
 import cl.duoc.casajojo.data.remote.dto.UsuarioResponseDto
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -62,4 +64,16 @@ interface ClimaApi {
         @Query("current") current: String,
         @Query("timezone") timezone: String,
     ): ClimaDto
+}
+
+interface OpenFoodFactsApi {
+    @GET("cgi/search.pl")
+    suspend fun buscar(
+        @Query("search_terms") termino: String,
+        @Query("search_simple") simple: Int = 1,
+        @Query("action") accion: String = "process",
+        @Query("json") json: Int = 1,
+        @Query("page_size") size: Int = 1,
+        @Query("fields") campos: String = "product_name,brands,nutriments",
+    ): Response<BusquedaOff>
 }
