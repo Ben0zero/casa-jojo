@@ -341,7 +341,7 @@ fun TituloBloque(glifo: String, texto: String) {
 }
 
 /**
- * CTA flotante estilo app de comida: barra oscura, glifo verde y precio.
+ * CTA flotante estilo app de comida: barra dorada con texto y flecha verde oscuro.
  * No decide nada: solo dibuja y propaga el onClick que ya tenga la pantalla.
  */
 @Composable
@@ -353,7 +353,7 @@ fun BarraPedido(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(99.dp),
-        color = Ink,
+        color = Gold,
         shadowElevation = 10.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -374,21 +374,21 @@ fun BarraPedido(
             Column(Modifier.weight(1f)) {
                 Text(
                     texto,
-                    color = Color.White,
+                    color = Ink,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp,
                 )
                 if (detalle != null) {
                     Text(
                         detalle,
-                        color = Color(0xFFB7C9B9),
+                        color = Ink,
                         fontSize = 11.sp,
                     )
                 }
             }
             Text(
                 "→",
-                color = Gold,
+                color = Ink,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(end = 14.dp),
