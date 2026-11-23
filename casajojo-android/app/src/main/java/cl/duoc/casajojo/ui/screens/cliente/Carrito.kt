@@ -67,6 +67,7 @@ fun ViewCarrito(
             }
 
             vm.cart.forEachIndexed { i, plato ->
+                val estado = vm.nutricionPorPlato[plato]
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = RoundedCornerShape(18.dp),
@@ -74,40 +75,125 @@ fun ViewCarrito(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 ) {
-                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
-                        Box(Modifier.size(66.dp)) {
-                            FotoPlaceholder(alto = 66.dp, etiqueta = "", redondeo = 13.dp)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(plato.nombreProteina, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Column(Modifier.padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Box(Modifier.size(66.dp)) {
+                                FotoPlaceholder(alto = 66.dp, etiqueta = "", redondeo = 13.dp)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(plato.nombreProteina, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(
+                                    if (plato.solo) {
+                                        "Solo la proteína"
+                                    } else {
+                                        plato.acompanamientos.joinToString(" · ")
+                                    },
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text(
+                                        "Quitar",
+                                        color = Ac,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable { vm.quitarPlato(i) }
+                                            .padding(vertical = 4.dp, horizontal = 2.dp),
+                                    )
+                                    Text(
+                                        if (estado?.expandido == true) {
+                                            "Ocultar información nutricional"
+                                        } else {
+                                            "Ver información nutricional"
+                                        },
+                                        color = Ac,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                if (estado?.expandido == true) {
+                                                    vm.ocultarNutricion(plato)
+                                                } else {
+                                                    vm.mostrarNutricion(plato)
+                                                }
+                                            }
+                                            .padding(vertical = 4.dp, horizontal = 2.dp),
+                                    )
+                                }
+                            }
                             Text(
-                                if (plato.solo) {
-                                    "Solo la proteína"
-                                } else {
-                                    plato.acompanamientos.joinToString(" · ")
-                                },
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp,
-                            )
-                            Text(
-                                "Quitar",
-                                color = Ac,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .padding(top = 8.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable { vm.quitarPlato(i) }
-                                    .padding(vertical = 4.dp, horizontal = 2.dp),
+                                plato.precio.money(),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                                modifier = Modifier.padding(start = 8.dp),
                             )
                         }
-                        Text(
-                            plato.precio.money(),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
+                        if (estado?.expandido == true) {
+                            Spacer(Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    when {
+                                        estado.cargando -> Text(
+                                            "Consultando…",
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            fontSize = 13.sp,
+                                        )
+                                        estado.error != null -> {
+                                            Text(
+                                                estado.error,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                fontSize = 13.sp,
+                                            )
+                                            Text(
+                                                "Reintentar",
+                                                color = Ac,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clickable { vm.reintentarNutricion(plato) }
+                                                    .padding(vertical = 4.dp),
+                                            )
+                                        }
+                                        estado.datos != null -> {
+                                            estado.datos.items.forEach { item ->
+                                                Text(
+                                                    "${item.ingrediente}: ${item.kcal.toInt()} kcal · " +
+                                                        "P ${item.proteinas} g · C ${item.carbohidratos} g · " +
+                                                        "G ${item.grasas} g",
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    fontSize = 12.sp,
+                                                )
+                                            }
+                                            Text(
+                                                "Total: ${estado.datos.total.kcal.toInt()} kcal · " +
+                                                    "P ${estado.datos.total.proteinas} g · " +
+                                                    "C ${estado.datos.total.carbohidratos} g · " +
+                                                    "G ${estado.datos.total.grasas} g",
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                            Text(
+                                                "Valores por 100 g · Fuente: Open Food Facts · Referencia aproximada",
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                fontSize = 11.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
