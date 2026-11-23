@@ -2,8 +2,8 @@ package cl.duoc.casajojo.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-data class BusquedaOff(
-    val products: List<ProductoOff> = emptyList(),
+data class RespuestaProductoOff(
+    val product: ProductoOff? = null,
 )
 
 data class ProductoOff(
