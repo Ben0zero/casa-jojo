@@ -40,8 +40,9 @@ fun Aviso(
         enter = fadeIn() + expandVertically(),
         exit = fadeOut() + shrinkVertically(),
     ) {
-        val fondo = if (esError) MaterialTheme.colorScheme.errorContainer else Color(0xFFE3F3E8)
-        val color = if (esError) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF1E5631)
+        // Colores del tema: en oscuro el aviso de éxito ya no es un bloque claro encandilante.
+        val fondo = if (esError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+        val color = if (esError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = fondo,

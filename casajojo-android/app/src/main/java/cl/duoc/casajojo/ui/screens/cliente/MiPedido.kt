@@ -43,7 +43,7 @@ import cl.duoc.casajojo.domain.usecase.ReglasPedido
 import cl.duoc.casajojo.ui.components.CancelarPedido
 import cl.duoc.casajojo.ui.components.EditarPedidoDialogo
 import cl.duoc.casajojo.ui.components.ErrorEcho
-import cl.duoc.casajojo.ui.components.FotoPlaceholder
+import cl.duoc.casajojo.ui.components.FotoPlato
 import cl.duoc.casajojo.ui.components.MSG_FUERA_DE_PLAZO
 import cl.duoc.casajojo.ui.components.MSG_PEDIDO_CANCELADO
 import cl.duoc.casajojo.ui.components.LineaEstado
@@ -63,7 +63,7 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 /**
  * PASO 6 — Mi pedido (RF-19).
  * Igual que antes: suscripción a Room, sincronización al abrir y escaneo de QR.
- * Cambia la presentación: foto reservada, línea de estado y tarjeta más viva.
+ * Cambia la presentación: imagen del plato, línea de estado y tarjeta más viva.
  */
 @Composable
 fun ViewMiPedido(
@@ -190,9 +190,13 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
     ) {
         Column {
             Box(Modifier.padding(9.dp)) {
-                FotoPlaceholder(alto = 132.dp, etiqueta = "Foto de tu pedido", redondeo = 16.dp)
+                FotoPlato(
+                    datos.platos.firstOrNull()?.nombreProteina ?: "Tu pedido",
+                    alto = 132.dp,
+                    redondeo = 16.dp,
+                )
                 Box(
-                    Modifier.fillMaxSize().padding(16.dp),
+                    Modifier.matchParentSize().padding(12.dp),
                     contentAlignment = Alignment.BottomStart,
                 ) {
                     Badge("La Casa JoJo")
@@ -205,7 +209,7 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
                         "#${p.numero}",
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Black,
-                        color = Ac,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f),
                     )
                     AnimatedContent(targetState = p.estadoPedido, label = "estadoPedido") { estado ->

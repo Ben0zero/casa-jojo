@@ -10,6 +10,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -56,11 +59,23 @@ internal val LightColors = lightColorScheme(
     onSurfaceVariant = Mut,
     outline = Line,
     error = Bad,
+    // Contenedores M3 (diálogos, menús, campos): sin esto salían en lavanda por defecto.
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFFBFDF9),
+    surfaceContainer = Color(0xFFF5FAF4),
+    surfaceContainerHigh = Color(0xFFF0F7EF),
+    surfaceContainerHighest = Color(0xFFE8F2E7),
+    surfaceTint = Ac,
+    inverseSurface = Ink,
+    inverseOnSurface = Color(0xFFFFF8E7),
+    inversePrimary = Color(0xFF5FD69A),
 )
 
 internal val DarkColors = darkColorScheme(
-    primary = Ac,
-    onPrimary = Color.White,
+    // Verde más claro que Ac: sobre los fondos oscuros, Ac quedaba bajo 3:1 de contraste
+    // en textos, enlaces y botones de texto. Los fondos verdes siguen usando Ac.
+    primary = Color(0xFF5FD69A),
+    onPrimary = Color(0xFF00391F),
     primaryContainer = VerdeOscuro,
     onPrimaryContainer = VerdeSuave,
     secondary = Gold,
@@ -75,6 +90,27 @@ internal val DarkColors = darkColorScheme(
     onSurfaceVariant = Color(0xFFB7C9B9),
     outline = Color(0xFF3E604D),
     error = Color(0xFFFFB4AB),
+    errorContainer = Color(0xFF5C1A16),
+    onErrorContainer = Color(0xFFFFDAD6),
+    surfaceContainerLowest = Color(0xFF0C1D15),
+    surfaceContainerLow = Color(0xFF142D22),
+    surfaceContainer = Color(0xFF18352A),
+    surfaceContainerHigh = Color(0xFF1E3D30),
+    surfaceContainerHighest = Color(0xFF254737),
+    surfaceTint = Ac,
+    inverseSurface = Color(0xFFFFF8E7),
+    inverseOnSurface = Ink,
+    inversePrimary = Ac,
+)
+
+/**
+ * Corte de línea en español: si una palabra larga ("acompañamientos") no cabe, se separa
+ * en sílabas con guion en vez de partirse en cualquier letra. Text usa bodyLarge como base.
+ */
+private val CorteEspanol = androidx.compose.ui.text.TextStyle(
+    hyphens = Hyphens.Auto,
+    lineBreak = LineBreak.Paragraph,
+    localeList = LocaleList("es-CL"),
 )
 
 /** Tipografía con más peso: títulos grandes y números muy visibles. */
@@ -103,8 +139,8 @@ internal val AppTypography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 16.sp,
     ),
-    bodyLarge = androidx.compose.ui.text.TextStyle(fontSize = 16.sp),
-    bodyMedium = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+    bodyLarge = CorteEspanol.copy(fontSize = 16.sp),
+    bodyMedium = CorteEspanol.copy(fontSize = 14.sp),
     labelLarge = androidx.compose.ui.text.TextStyle(
         fontWeight = FontWeight.Bold,
         fontSize = 15.sp,

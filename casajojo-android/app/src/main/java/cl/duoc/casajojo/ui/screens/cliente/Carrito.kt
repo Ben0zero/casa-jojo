@@ -24,7 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.ui.components.Boton
-import cl.duoc.casajojo.ui.components.FotoPlaceholder
+import cl.duoc.casajojo.ui.components.FotoPlato
+import androidx.compose.material3.minimumInteractiveComponentSize
 import cl.duoc.casajojo.ui.components.PanelTotal
 import cl.duoc.casajojo.ui.components.Titulo
 import cl.duoc.casajojo.ui.components.Volver
@@ -81,11 +82,17 @@ fun ViewCarrito(
                     Column(Modifier.padding(10.dp)) {
                         Row(verticalAlignment = Alignment.Top) {
                             Box(Modifier.size(66.dp)) {
-                                FotoPlaceholder(alto = 66.dp, etiqueta = "", redondeo = 13.dp)
+                                FotoPlato(plato.nombreProteina, alto = 66.dp, redondeo = 13.dp)
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(plato.nombreProteina, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(
+                                    plato.nombreProteina,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
                                 Text(
                                     if (plato.solo) {
                                         "Solo la proteína"
@@ -95,46 +102,52 @@ fun ViewCarrito(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Text(
-                                        "Quitar",
-                                        color = Ac,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .padding(top = 8.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .clickable { vm.quitarPlato(i) }
-                                            .padding(vertical = 4.dp, horizontal = 2.dp),
-                                    )
-                                    Text(
-                                        if (estado?.expandido == true) {
-                                            "Ocultar información nutricional"
-                                        } else {
-                                            "Ver información nutricional"
-                                        },
-                                        color = Ac,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .padding(top = 8.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .clickable {
-                                                if (estado?.expandido == true) {
-                                                    vm.ocultarNutricion(plato)
-                                                } else {
-                                                    vm.mostrarNutricion(plato)
-                                                }
-                                            }
-                                            .padding(vertical = 4.dp, horizontal = 2.dp),
-                                    )
-                                }
                             }
                             Text(
                                 plato.precio.money(),
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 15.sp,
                                 modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                        // Enlaces en su propia fila de ancho completo (no se apilan en pantallas
+                        // angostas) y con área táctil mínima de 48dp (antes ~26dp).
+                        Row(
+                            modifier = Modifier.padding(start = 70.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Quitar",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { vm.quitarPlato(i) }
+                                    .minimumInteractiveComponentSize()
+                                    .padding(horizontal = 6.dp),
+                            )
+                            Text(
+                                if (estado?.expandido == true) {
+                                    "Ocultar nutrición"
+                                } else {
+                                    "Ver nutrición"
+                                },
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        if (estado?.expandido == true) {
+                                            vm.ocultarNutricion(plato)
+                                        } else {
+                                            vm.mostrarNutricion(plato)
+                                        }
+                                    }
+                                    .minimumInteractiveComponentSize()
+                                    .padding(horizontal = 6.dp),
                             )
                         }
                         if (estado?.expandido == true) {
@@ -159,13 +172,14 @@ fun ViewCarrito(
                                             )
                                             Text(
                                                 "Reintentar",
-                                                color = Ac,
+                                                color = MaterialTheme.colorScheme.primary,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier
-                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clip(RoundedCornerShape(8.dp))
                                                     .clickable { vm.reintentarNutricion(plato) }
-                                                    .padding(vertical = 4.dp),
+                                                    .minimumInteractiveComponentSize()
+                                                    .padding(horizontal = 6.dp),
                                             )
                                         }
                                         estado.datos != null -> {

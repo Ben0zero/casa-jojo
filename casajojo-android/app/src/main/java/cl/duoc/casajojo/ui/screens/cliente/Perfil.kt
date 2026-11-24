@@ -2,7 +2,10 @@ package cl.duoc.casajojo.ui.screens.cliente
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
+import android.net.Uri
+import cl.duoc.casajojo.data.local.PerfilPhotoStorage
+import cl.duoc.casajojo.ui.components.AvatarUsuario
+import cl.duoc.casajojo.ui.components.inicialesDe
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -66,8 +69,11 @@ import cl.duoc.casajojo.ui.viewmodels.PerfilViewModel
 @Composable
 fun ViewPerfil(
     vm: PerfilViewModel,
-    foto: Bitmap?,
-    onFotoCambiada: (Bitmap) -> Unit,
+    foto: PerfilPhotoStorage.Foto?,
+    /** URI temporal (FileProvider) donde la cámara deja la foto a resolución completa. */
+    uriCaptura: () -> Uri,
+    /** Procesa y guarda la captura; avisa si se pudo guardar. */
+    onFotoTomada: (onResultado: (Boolean) -> Unit) -> Unit,
     onVolver: () -> Unit,
     onCuentaEliminada: () -> Unit,
 ) {
@@ -84,20 +90,24 @@ fun ViewPerfil(
         }
     }
 
+    // TakePicture (no TakePicturePreview): la cámara escribe la foto completa en la URI,
+    // así el avatar se ve nítido en vez de un thumbnail pixelado.
     val camara = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicturePreview(),
-    ) { imagen ->
-        if (imagen != null) {
-            onFotoCambiada(imagen)
-            mensajeFoto = "Foto de perfil actualizada"
+        ActivityResultContracts.TakePicture(),
+    ) { tomada ->
+        if (tomada) {
+            onFotoTomada { ok ->
+                mensajeFoto = if (ok) "Foto de perfil actualizada" else "No pudimos guardar la foto. Intenta de nuevo."
+            }
         }
     }
+    fun lanzarCamara() = camara.launch(uriCaptura())
 
     val pedirCamara = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { concedido ->
         if (concedido) {
-            camara.launch(null)
+            lanzarCamara()
         } else {
             mensajeFoto = "Necesitamos permiso para usar la cámara"
         }
@@ -106,7 +116,7 @@ fun ViewPerfil(
     fun abrirCamara() {
         val permiso = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
         if (permiso == PackageManager.PERMISSION_GRANTED) {
-            camara.launch(null)
+            lanzarCamara()
         } else {
             pedirCamara.launch(Manifest.permission.CAMERA)
         }
@@ -133,31 +143,12 @@ fun ViewPerfil(
                             Brush.horizontalGradient(listOf(Ac, Color(0xFFFFC83D))),
                         ),
                     ) {
-                        if (foto == null) {
-                            Box(
-                                modifier = Modifier
-                                    .size(140.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(listOf(Color(0xFFE8F5EA), Color(0xFFD3EAD8))),
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("📷", fontSize = 30.sp)
-                                    Text(
-                                        "Espacio para tu foto",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF9E6250),
-                                    )
-                                }
-                            }
-                        } else {
-                            Image(
-                                bitmap = foto.asImageBitmap(),
-                                contentDescription = "Foto de perfil",
-                                modifier = Modifier.size(140.dp).clip(CircleShape),
+                        Box(contentAlignment = Alignment.Center) {
+                            AvatarUsuario(
+                                foto = foto,
+                                iniciales = inicialesDe(estado.nombre),
+                                tamano = 140.dp,
+                                tamanoTexto = 44.sp,
                             )
                         }
                     }
@@ -165,7 +156,7 @@ fun ViewPerfil(
                     Badge(estado.correo.ifBlank { "Mi cuenta Casa JoJo" })
                     Spacer(Modifier.height(16.dp))
                     Boton("📸  Tomar foto con la cámara", onClick = ::abrirCamara, estilo = "fantasma")
-                    Aviso(mensajeFoto, esError = mensajeFoto?.startsWith("Necesitamos") == true)
+                    Aviso(mensajeFoto, esError = mensajeFoto?.startsWith("Foto") == false)
                 }
 
                 // ---------- Mis datos (READ + UPDATE) ----------

@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.screens.auth
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -151,13 +152,15 @@ fun LoginScreen(
                         // EFT: recuperación de contraseña (correo → código → nueva contraseña).
                         Text(
                             "¿Olvidaste tu contraseña?",
-                            color = Ac,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             modifier = Modifier
                                 .align(Alignment.End)
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable(enabled = !estado.cargando, onClick = onOlvide)
-                                .padding(vertical = 8.dp),
+                                .minimumInteractiveComponentSize()
+                                .padding(horizontal = 6.dp),
                         )
                         Spacer(Modifier.height(12.dp))
                         Boton(
@@ -170,6 +173,7 @@ fun LoginScreen(
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 "¿No tienes cuenta? ",
@@ -178,10 +182,14 @@ fun LoginScreen(
                             )
                             Text(
                                 "Crear cuenta",
-                                color = Ac,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                modifier = Modifier.clickable(enabled = !estado.cargando, onClick = onIrRegistro),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !estado.cargando, onClick = onIrRegistro)
+                                    .minimumInteractiveComponentSize()
+                                    .padding(horizontal = 6.dp),
                             )
                         }
                     }

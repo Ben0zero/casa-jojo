@@ -36,14 +36,17 @@ fun ViewProteina(
     ErrorEcho(vm.error) { vm.limpiarError() }
     val proteinas by vm.proteinas.collectAsState()
     Pantalla(
-        bar = {
-            if (vm.cart.isNotEmpty()) {
+        // Sin platos en el carrito no hay barra: antes quedaba una franja blanca vacía.
+        bar = if (vm.cart.isNotEmpty()) {
+            {
                 BarraPedido(
                     texto = "Ver mi pedido (${vm.cart.size})",
                     detalle = "Total ${vm.total.money()} · sigue armando tu pedido",
                     onClick = onIrCarrito,
                 )
             }
+        } else {
+            null
         },
     ) {
         Column {

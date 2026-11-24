@@ -37,7 +37,25 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.BarraNavegacion
 import cl.duoc.casajojo.ui.components.BarraPedido
-import cl.duoc.casajojo.ui.components.FotoPlaceholder
+import cl.duoc.casajojo.ui.components.AvatarUsuario
+import cl.duoc.casajojo.ui.components.emojiPlato
+import cl.duoc.casajojo.ui.components.inicialesDe
+import cl.duoc.casajojo.data.local.PerfilPhotoStorage
+import android.annotation.SuppressLint
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import cl.duoc.casajojo.ui.components.Nota
 import cl.duoc.casajojo.ui.layouts.Pantalla
 import cl.duoc.casajojo.ui.theme.Ac
@@ -51,8 +69,9 @@ import cl.duoc.casajojo.ui.viewmodels.ClimaViewModel
 /**
  * PASO 0 — Portada.
  * Mismo flujo de siempre (comenzar / ver pedido / perfil / cerrar sesión),
- * con una portada tipo app de comida rápida y espacio reservado para foto.
+ * con una portada tipo app de comida rápida, imagen del plato del día y avatar del usuario.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ViewHome(
     vm: ClienteViewModel,
@@ -61,6 +80,7 @@ fun ViewHome(
     onHistorial: () -> Unit,
     onPerfil: () -> Unit,
     onCerrarSesion: () -> Unit,
+    fotoPerfil: PerfilPhotoStorage.Foto? = null,
 ) {
     val usuario by vm.usuario.collectAsState()
     val ultimoPedido by vm.ultimoPedido.collectAsState()
@@ -118,15 +138,19 @@ fun ViewHome(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                // Avatar: misma foto que Perfil (PerfilPhotoStorage.foto); sin foto, iniciales.
                 Surface(
                     onClick = onPerfil,
                     shape = CircleShape,
                     color = Ac,
                     shadowElevation = 4.dp,
+                    border = BorderStroke(2.dp, Gold),
                 ) {
-                    Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-                        Text("CJ", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
-                    }
+                    AvatarUsuario(
+                        foto = fotoPerfil,
+                        iniciales = inicialesDe(usuario?.nombre),
+                        tamano = 48.dp,
+                    )
                 }
             }
 
@@ -137,29 +161,27 @@ fun ViewHome(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Box {
-                    // Círculo dorado decorativo: guiño visual de la maqueta,
-                    // dibujado con Compose, sin assets de otras marcas.
+                    // Círculo dorado decorativo: ahora queda abajo a la derecha, detrás del
+                    // texto y recortado por la tarjeta, en vez de asomar tras la imagen.
                     Box(
                         Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 28.dp, y = (-28).dp)
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 46.dp, y = 46.dp)
                             .size(150.dp)
                             .clip(CircleShape)
-                            .background(Gold),
+                            .background(Gold.copy(alpha = 0.16f)),
                     )
                     Column {
                         Box(Modifier.padding(9.dp)) {
-                            FotoPlaceholder(alto = 150.dp, etiqueta = "Foto de tu plato", redondeo = 18.dp)
-                            Box(
-                                Modifier.fillMaxSize().padding(16.dp),
-                                contentAlignment = Alignment.TopStart,
+                            ImagenPlatoDelDia(alto = 160.dp)
+                            // Las dos etiquetas van en fila (y bajan de línea si no caben),
+                            // así nunca se tapan entre sí.
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.matchParentSize().padding(12.dp),
                             ) {
                                 Badge("🔥 Listo en 10 min", color = Ac)
-                            }
-                            Box(
-                                Modifier.fillMaxSize().padding(16.dp),
-                                contentAlignment = Alignment.BottomStart,
-                            ) {
                                 Badge("Retiro express", color = Gold, colorTexto = Ink)
                             }
                         }
@@ -241,13 +263,21 @@ fun ViewHome(
             Column(modifier = Modifier.fillMaxWidth()) {
                 antojos.chunked(3).forEachIndexed { fila, items ->
                     if (fila > 0) Spacer(Modifier.height(12.dp))
+                    // Cada chip ocupa un tercio exacto: los nombres largos se parten en
+                    // 2 líneas centradas en vez de empujar a los vecinos.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items.forEach { (nombre, disponible) ->
-                            CategoriaChip(iconoPara(nombre), nombre, disponible)
+                            CategoriaChip(
+                                emojiPlato(nombre),
+                                nombre,
+                                disponible,
+                                Modifier.weight(1f),
+                            )
                         }
+                        repeat(3 - items.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -339,19 +369,61 @@ private fun FilaAcceso(glifo: String, texto: String, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             Text(texto, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text("→", color = Ac, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("→", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
     }
 }
 
-/** Glifo según el plato real de Casa JoJo. */
-private fun iconoPara(nombre: String): String = when {
-    nombre.contains("pollo", ignoreCase = true) -> "🍗"
-    nombre.contains("carne", ignoreCase = true) -> "🥩"
-    nombre.contains("guatita", ignoreCase = true) -> "🍲"
-    nombre.contains("cerdo", ignoreCase = true) -> "🥓"
-    nombre.contains("poroto", ignoreCase = true) -> "🫘"
-    else -> "🍽️"
+/**
+ * Imagen de la tarjeta principal. Si existe res/drawable-nodpi/plato_del_dia.jpg (o .png/.webp)
+ * se muestra esa foto real recortada; si no, una composición ilustrada con la marca.
+ * Se busca por nombre para que basta con copiar el archivo y recompilar, sin tocar código.
+ */
+@SuppressLint("DiscouragedApi")
+@Composable
+private fun ImagenPlatoDelDia(alto: Dp) {
+    val context = LocalContext.current
+    val foto = remember {
+        context.resources.getIdentifier("plato_del_dia", "drawable", context.packageName)
+    }
+    if (foto != 0) {
+        Image(
+            painter = painterResource(foto),
+            contentDescription = "Plato del día de La Casa JoJo",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(alto)
+                .clip(RoundedCornerShape(18.dp)),
+        )
+        return
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(alto)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.linearGradient(listOf(Ac, VerdeOscuro, Ink))),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Halo dorado detrás del plato principal.
+        Box(
+            Modifier
+                .size(118.dp)
+                .clip(CircleShape)
+                .background(Gold.copy(alpha = 0.28f)),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 26.dp)
+                .semantics { contentDescription = "Ilustración de un almuerzo de La Casa JoJo" },
+        ) {
+            Text("🥗", fontSize = 34.sp)
+            Text("🍗", fontSize = 64.sp)
+            Text("🍚", fontSize = 34.sp)
+        }
+    }
 }
 
 /** Chips circulares del menú real: decorativos, no crean rutas nuevas. */
@@ -359,32 +431,46 @@ private fun iconoPara(nombre: String): String = when {
 private fun CategoriaChip(
     glifo: String,
     texto: String,
-    disponible: Boolean = true,
+    disponible: Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    val oscuro = isSystemInDarkTheme()
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Surface(
             shape = CircleShape,
-            color = if (disponible) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                Color(0xFFEFEFEA)
+            color = when {
+                disponible -> MaterialTheme.colorScheme.primaryContainer
+                oscuro -> MaterialTheme.colorScheme.surfaceVariant
+                else -> Color(0xFFEFEFEA)
             },
             shadowElevation = 2.dp,
         ) {
-            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(58.dp).alpha(if (disponible) 1f else 0.6f),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(glifo, fontSize = 24.sp)
             }
         }
         Spacer(Modifier.height(6.dp))
         Text(
             texto,
-            color = if (disponible) MaterialTheme.colorScheme.onSurfaceVariant else Mut,
-            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            lineHeight = 13.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
         )
         if (!disponible) {
-            Text("Agotado", color = Mut, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Agotado",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

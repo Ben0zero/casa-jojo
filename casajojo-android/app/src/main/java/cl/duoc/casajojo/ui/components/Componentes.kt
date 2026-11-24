@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.components
 
+import androidx.compose.foundation.text.TextAutoSize
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -83,7 +84,7 @@ fun PasoBar(paso: Int) {
                     ) {
                         Text(
                             if (activo) "✓" else "${i + 1}",
-                            color = Color.White,
+                            color = if (activo) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                         )
@@ -99,11 +100,14 @@ fun PasoBar(paso: Int) {
                         )
                     }
                 }
+                // Una sola línea que se achica si no cabe: antes "Acompañamientos" se partía
+                // a mitad de palabra en pantallas angostas o con letra grande.
                 Text(
                     texto,
                     color = if (activo) MaterialTheme.colorScheme.onBackground
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp),
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 6.dp),
                 )
@@ -250,8 +254,8 @@ fun Boton(
     val colorTexto: Color
     when (estilo) {
         "acento" -> {
-            colorFondo = MaterialTheme.colorScheme.primary
-            colorTexto = MaterialTheme.colorScheme.onPrimary
+            colorFondo = Ac
+            colorTexto = Color.White
         }
         "oscuro" -> {
             colorFondo = MaterialTheme.colorScheme.onBackground

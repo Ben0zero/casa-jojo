@@ -1,5 +1,7 @@
 package cl.duoc.casajojo.ui.screens.auth
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -79,7 +81,7 @@ fun RecuperarScreen(
                         Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
                             when (paso) {
                                 PasoRecuperacion.CORREO -> {
-                                    Text("Paso 1 de 2", color = Ac, fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                                    Text("Paso 1 de 2", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp,
                                         modifier = Modifier.padding(top = 10.dp))
                                     CampoTexto(
                                         etiqueta = "Correo de tu cuenta",
@@ -102,7 +104,7 @@ fun RecuperarScreen(
                                     )
                                 }
                                 PasoRecuperacion.CODIGO -> {
-                                    Text("Paso 2 de 2", color = Ac, fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                                    Text("Paso 2 de 2", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp,
                                         modifier = Modifier.padding(top = 10.dp))
                                     Text(
                                         "Revisa ${estado.correo.trim()}. El código vence en 15 minutos y sirve una sola vez.",
@@ -150,13 +152,15 @@ fun RecuperarScreen(
                                     Spacer(Modifier.height(12.dp))
                                     Text(
                                         "¿No te llegó? Pedir otro código",
-                                        color = Ac,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         modifier = Modifier
                                             .align(Alignment.CenterHorizontally)
+                                            .clip(RoundedCornerShape(8.dp))
                                             .clickable(enabled = activo, onClick = vm::volverAPedirCodigo)
-                                            .padding(8.dp),
+                                            .minimumInteractiveComponentSize()
+                                            .padding(horizontal = 8.dp),
                                     )
                                 }
                             }
