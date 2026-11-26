@@ -6,6 +6,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
@@ -41,11 +45,23 @@ fun PedirPermisoRedLocal(onConcedido: () -> Unit) {
     if (Build.VERSION.SDK_INT < API_RED_LOCAL) return
 
     val context = LocalContext.current
+    var rechazado by rememberSaveable { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { concedido ->
         // Si lo rechaza, la app sigue funcionando con la caché (Room) sin conexión.
-        if (concedido) onConcedido()
+        if (concedido) onConcedido() else rechazado = true
+    }
+
+    if (rechazado) {
+        DialogoPermisoRechazado(
+            titulo = "Sin acceso a la red local",
+            mensaje = "Sin este permiso la app no puede conectarse a los servicios de La Casa JoJo " +
+                "y funcionará sin conexión (menú guardado en el teléfono). " +
+                "Actívalo en Ajustes → Permisos → Dispositivos cercanos / Red local.",
+            onCerrar = { rechazado = false },
+            textoCerrar = "Seguir sin conexión",
+        )
     }
 
     LaunchedEffect(Unit) {

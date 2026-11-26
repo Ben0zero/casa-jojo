@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import cl.duoc.casajojo.ui.components.Aviso
+import cl.duoc.casajojo.ui.components.DialogoPermisoRechazado
 import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.Boton
 import cl.duoc.casajojo.ui.components.CampoTexto
@@ -81,6 +82,7 @@ fun ViewPerfil(
     val foco = LocalFocusManager.current
     val estado by vm.estado.collectAsState()
     var mensajeFoto by remember { mutableStateOf<String?>(null) }
+    var camaraRechazada by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(estado.mensaje) {
@@ -101,7 +103,14 @@ fun ViewPerfil(
             }
         }
     }
-    fun lanzarCamara() = camara.launch(uriCaptura())
+    // Sin app de cámara (o sin cámara: uses-feature required="false") no se cae la app.
+    fun lanzarCamara() {
+        try {
+            camara.launch(uriCaptura())
+        } catch (e: android.content.ActivityNotFoundException) {
+            mensajeFoto = "Este dispositivo no tiene una app de cámara disponible"
+        }
+    }
 
     val pedirCamara = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -110,6 +119,7 @@ fun ViewPerfil(
             lanzarCamara()
         } else {
             mensajeFoto = "Necesitamos permiso para usar la cámara"
+            camaraRechazada = true
         }
     }
 
@@ -120,6 +130,15 @@ fun ViewPerfil(
         } else {
             pedirCamara.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    if (camaraRechazada) {
+        DialogoPermisoRechazado(
+            titulo = "Permiso de cámara rechazado",
+            mensaje = "Sin la cámara no podemos tomar tu foto de perfil; el resto de la app " +
+                "funciona igual. Puedes activarla en Ajustes → Permisos → Cámara.",
+            onCerrar = { camaraRechazada = false },
+        )
     }
 
     Box(Modifier.fillMaxSize()) {

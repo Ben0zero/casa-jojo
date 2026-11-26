@@ -20,6 +20,7 @@ Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 - Registro e inicio de sesión por correo, con validación por campo y sesión persistente (DataStore + JWT).
 - **¿Olvidaste tu contraseña?**: correo → código de 6 dígitos (un solo uso, vence en 15 min) → nueva contraseña.
 - **Perfil**: ver y editar nombre y celular, cambiar contraseña (pide la actual), **eliminar cuenta** con diálogo de confirmación y foto de perfil con la cámara.
+- **Foto de perfil por cuenta**: cada usuario tiene su propia foto (`filesDir/foto_perfil_<id>.jpg`, ruta y versión en DataStore). `PerfilPhotoStorage.foto` es un `StateFlow` combinado con la sesión, así que el **avatar del Inicio** y el de Perfil se actualizan al instante. La cámara escribe la foto a **resolución completa** (`TakePicture` + `FileProvider`), se endereza según EXIF y se guarda a máx. 1080 px.
 
 **Pedido**
 - Armado paso a paso: proteína → acompañamientos (o "solo proteína" a $3.000) → carrito → retiro y pago.
@@ -27,13 +28,18 @@ Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 - **Mi pedido**: estado sincronizado con ms-ventas; **cancelar** dentro de 15 s (RF-13) y **editar** nombre, hora, forma de pago e indicaciones mientras siga *Recibido* (RF-12).
 - **Retiro con QR** de la tienda (`casajojo://retiro?codigo=...`): el pedido queda Entregado y Pagado.
 - **Historial** de pedidos entregados y cancelados.
+- **Fotos reales de los 14 platos** (`res/drawable-nodpi/plato_*.webp`) en Inicio, Proteína, Acompañamientos, Carrito, Mi pedido, Editar pedido e Historial. Una sola función, `ui/components/ImagenesPlatos.kt → imagenDePlato(sku, nombre)`, busca la foto por SKU (`CJ-PROT-01`…) o por nombre normalizado (sin tildes ni mayúsculas); si un plato nuevo del backend no tiene foto, se dibuja el emoji de respaldo. Todas usan `ContentScale.Crop` con la forma del recuadro (círculo o esquinas redondeadas) y los platos **agotados** se ven en escala de grises con el badge "Agotado".
 - Envío diferido: si no hay red al confirmar, el pedido queda en Room y se reenvía solo (sin duplicarse).
 
 **APIs externas**
 - **Open-Meteo**: clima actual de Viña del Mar en el Inicio, con indicador de carga, mensaje de error y botón *Reintentar*.
 - **Open Food Facts**: en el Carrito, cada plato muestra su información nutricional (kcal, proteínas, carbohidratos y grasas por 100 g de cada ingrediente y el total), con carga, error y *Reintentar*.
 
-**Recursos nativos**: cámara (permiso `CAMERA` en tiempo de ejecución), lector QR (ML Kit), notificaciones locales, compartir pedido y permiso de red local (Android 17).
+**Recursos nativos**: cámara (permiso `CAMERA` en tiempo de ejecución), lector QR (Google Code Scanner, sin permiso de cámara), notificaciones locales, compartir pedido y permiso de red local (Android 17).
+
+**Diseño y accesibilidad**
+- Nuevo diseño del **Login** (logo centrado en un recuadro, tarjeta crema), de la **barra superior** (logo `casa_jojo_logo` + acceso al carrito) y del **ícono de la app** (logo dentro del área segura del ícono adaptativo).
+- **Tema oscuro** completo (colores del `MaterialTheme`, sin bloques claros encandilantes), áreas táctiles mínimas de **48 dp** en enlaces y barra inferior, textos que ya no se cortan (`maxLines` + `TextAutoSize`) y diseño probado en pantalla chica.
 
 ---
 
@@ -90,6 +96,21 @@ suma el total. Las respuestas quedan en una caché en memoria, se reintenta ante
 y, si falla, el Carrito muestra el error con *Reintentar* sin afectar el pedido.
 
 Swagger de cada servicio: `http://localhost:<puerto>/swagger-ui.html`.
+
+---
+
+## Permisos (`casajojo-android/app/src/main/AndroidManifest.xml`)
+
+| Permiso | Para qué se usa | Cuándo se pide | Qué pasa si se rechaza |
+|---|---|---|---|
+| `INTERNET` | Microservicios (Retrofit), Open-Meteo y Open Food Facts | Nunca: es permiso *normal*, se concede al instalar | — |
+| `ACCESS_LOCAL_NETWORK` (Android 17 / API 37) | Llegar a los microservicios en `10.0.2.2` (emulador) o en la IP de la PC (celular) | Al abrir la app, solo en Android 17+ (`ui/components/PedirPermisoRedLocal.kt`) | Diálogo "Sin acceso a la red local" con **Ir a ajustes** o **Seguir sin conexión**; la app funciona con la caché de Room |
+| `POST_NOTIFICATIONS` (Android 13+ / API 33) | Notificación "Pedido #N registrado" | Al entrar a Retiro, justo antes de confirmar (`PedirPermisoNotificaciones.kt`) | El pedido se registra igual; diálogo "Notificaciones desactivadas" con **Ir a ajustes** |
+| `CAMERA` + `<uses-feature android.hardware.camera required="false">` | Foto de perfil (`TakePicture` + `FileProvider`) | Al tocar "Tomar foto" en Perfil (`Perfil.kt → abrirCamara()`) | Diálogo "Permiso de cámara rechazado" con **Ir a ajustes**; el resto de la app sigue igual. Sin app de cámara, mensaje en vez de cierre |
+
+- El **escáner QR** (Google Code Scanner, `play-services-code-scanner`) **no necesita** `CAMERA`: la cámara la abre Google Play Services en su propio proceso y la app solo recibe el texto.
+- Las librerías agregan solas, en el manifest final, `ACCESS_NETWORK_STATE` (de `datatransport`, la usa ML Kit; permiso normal) y `<paquete>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` (de `androidx.core`, de nivel *signature*, protege receptores internos). Ninguno se muestra al usuario.
+- `android:allowBackup="false"` (Room y el token JWT no van a la nube), `networkSecurityConfig` permite HTTP solo porque la demo usa la red local, la única Activity (`MainActivity`) es `exported="true"` por el `LAUNCHER`, y el `FileProvider` (`${applicationId}.fotos`, `res/xml/rutas_fotos.xml` → `cache/camara/`) es `exported="false"` con `grantUriPermissions`.
 
 ---
 
@@ -151,7 +172,7 @@ Paso a paso de la presentación (hotspot, IP, firewall, QR y plan B): **[docs/DE
 
 | Archivo | Ubicación |
 |---|---|
-| APK release firmado (apunta a `10.0.2.2`) | `casajojo-android/apk/CasaJojo-release.apk` |
+| APK release firmado (apunta a `10.0.2.2`, **11,56 MB**) | `casajojo-android/apk/CasaJojo-release.apk` |
 | Keystore (`.jks`) | `casajojo-android/app/keystore/casajojo-release.jks` |
 | Configuración de firma | `casajojo-android/keystore.properties` → `signingConfigs.release` en `app/build.gradle.kts` |
 
@@ -167,7 +188,8 @@ proyecto real irían en un gestor de secretos.
 |---|---|---|
 | **Room** (SQLite en el teléfono) | `productos` (copia del menú), `pedidos` + `platos` (con `remotoId` y `referencia` UUID), `usuarios` (nombre, correo, celular y hash PBKDF2 + salt de la contraseña) | Datos **estructurados y relacionales** que la app consulta con filtros (historial por estado, pedido en curso) y que deben seguir disponibles **sin red**. Permite crear un pedido offline y reenviarlo después sin duplicarlo. |
 | **DataStore Preferences** | `usuario_id` de la sesión, `ultimo_correo` y el token JWT | Son **pocos valores clave-valor** de configuración/sesión. DataStore es asíncrono y transaccional (no bloquea la UI como SharedPreferences) y no necesita tablas. Nunca guarda contraseñas. |
-| **Archivo privado** (`filesDir`) | Foto de perfil | Un binario grande no corresponde a Room ni a DataStore. |
+| **Archivo privado** (`filesDir`) + DataStore `foto_perfil` | Foto de perfil, **una por cuenta** (`foto_perfil_<id>.jpg`); DataStore guarda su ruta y versión | Un binario grande no corresponde a Room; DataStore solo guarda la ruta para que el avatar reaccione (`StateFlow`). |
+| **Recursos del APK** (`res/drawable-nodpi`) | Fotos de los 14 platos (WebP, 16–41 KB c/u) | Son fijas del menú: viajan dentro del APK y funcionan sin red. |
 | **Oracle Cloud** (vía microservicios) | Cuentas y roles (`usuarios`, `roles`), códigos de recuperación (`cj_codigos_recuperacion`, solo hash), menú (`productos` CJ-*), pedidos (`pedidos_casajojo` + detalle) | Es la **fuente de verdad compartida**: la cocina ve los pedidos de todos los clientes, el estado lo cambia la cocina, las contraseñas se validan en el servidor (BCrypt) y una cuenta sirve en cualquier teléfono. |
 
 Estrategia **API primero, caché después**: los Repository llaman a los microservicios y
@@ -190,7 +212,7 @@ referencia que no cambia el pedido.
 
 ```powershell
 cd casajojo-android
-.\gradlew testDebugUnitTest      # 175 pruebas (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
+.\gradlew testDebugUnitTest      # 181 pruebas en 20 clases (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
 .\gradlew jacocoTestReportCore   # reporte HTML/XML en app/build/reports/jacoco/jacocoTestReportCore/
 .\gradlew jacocoVerificar80      # falla si la cobertura de líneas baja de 80%
 ```
@@ -203,7 +225,9 @@ Todos los ViewModel (`AuthViewModel`, `ClienteViewModel`, `PerfilViewModel`,
 `ClimaViewModel`) y Repository (`AuthRepository`, `PedidoRepository`, `ClimaRepository`,
 `NutricionRepository`)
 tienen pruebas, incluidas la recuperación de contraseña, el perfil, la edición de pedidos,
-el reintento del clima, el estado de nutrición del Carrito y la traducción de errores.
+el reintento del clima, el estado de nutrición del Carrito, la traducción de errores y la
+asociación plato → foto (`ImagenesPlatosTest`: los 14 SKU tienen foto y uno desconocido
+devuelve `null`).
 
 Microservicios (JUnit 5 + Mockito, sin Oracle):
 

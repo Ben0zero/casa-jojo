@@ -81,7 +81,8 @@ instalarlo permitiendo "orígenes desconocidos".
 > recompilarlo con la IP del paso 3; si la IP cambia, se recompila.
 
 Al abrir la app en Android 17, aceptar el permiso de **dispositivos en la red local**
-(sin él no llega a los microservicios).
+(sin él no llega a los microservicios). Si se rechaza por error, la app muestra un diálogo
+con **Ir a ajustes**; también se puede activar en Ajustes → Apps → La Casa JoJo → Permisos.
 
 ## 6. Guion de la demo (vista cliente)
 
@@ -89,13 +90,15 @@ Al abrir la app en Android 17, aceptar el permiso de **dispositivos en la red lo
 |---|---|---|
 | 1 | Registro con validación por campo (correo, celular, contraseña) | Crear cuenta |
 | 2 | Login y "¿Olvidaste tu contraseña?": correo → código → nueva contraseña | Login |
-| 3 | Clima de Viña del Mar (API externa Open-Meteo) con "Reintentar" | Inicio |
-| 4 | Armar pedido: proteína → acompañamientos → carrito → retiro y pago | Hacer pedido |
+| 3 | Clima de Viña del Mar (API externa Open-Meteo) con "Reintentar"; fotos reales en "¿Qué te antoja?" (Cerdo mongoliano en gris por agotado) y avatar con la foto de perfil | Inicio |
+| 4 | Armar pedido: proteína → acompañamientos → carrito → retiro y pago (fotos de cada plato) | Hacer pedido |
+| 4b | En el Carrito, "Ver nutrición" (API externa Open Food Facts) | Carrito |
 | 5 | Cancelar dentro de 15 s (RF-13) o **Editar pedido** mientras está Recibido (RF-12) | Mi pedido |
 | 6 | Cocina avanza el pedido a LISTO (paso 7) y la app lo refleja | Mi pedido |
 | 7 | Retiro con el QR de la tienda → Entregado y Pagado | Mi pedido |
 | 8 | Historial (Entregados / Cancelados) | Historial |
-| 9 | Perfil: foto con cámara, editar nombre y celular, cambiar contraseña | Perfil |
+| 9 | Perfil: foto con cámara (pide `CAMERA` al tocar; si se rechaza, diálogo con "Ir a ajustes"), editar nombre y celular, cambiar contraseña. Volver al Inicio: el avatar ya muestra la foto | Perfil |
+| 9b | Cambiar el teléfono a tema oscuro: todas las pantallas se adaptan | Ajustes del sistema |
 | 10 | Eliminar cuenta con diálogo de confirmación | Perfil |
 
 **Código de recuperación:** si no hay SMTP en el `.env`, ms-auth está en modo "log":

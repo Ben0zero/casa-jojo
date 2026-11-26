@@ -1,23 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Recurso nativo: notificaciones locales del estado del pedido.
-         Obligatorio declararlo desde Android 13 (API 33); en versiones
-         anteriores se ignora. El permiso se solicita en runtime desde
-         la pantalla de Retiro (PedirPermisoNotificaciones). -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CAMERA" />
-
-    <!-- EA3 / IL3.1: necesario para llamar a los microservicios por Retrofit. -->
+    <!-- Red: microservicios propios (Retrofit → ms-auth, ms-catalogo, ms-ventas) y las APIs
+         externas Open-Meteo (clima del Home) y Open Food Facts (nutrición del carrito).
+         Permiso "normal": se concede al instalar, no se pide en pantalla. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Android 17 (API 37): permiso de red local. Sin él, la app no puede conectarse a
          los microservicios en 10.0.2.2 (emulador) ni en la IP de la PC (celular físico).
-         Se pide en tiempo de ejecución (ver PedirPermisoRedLocal). -->
+         Se pide en tiempo de ejecución al abrir la app (ui/components/PedirPermisoRedLocal).
+         En Android 16 o anterior el sistema lo ignora. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
-    <!-- B3: sin respaldo automático (la base local y el token JWT no salen del teléfono).
-         M14: HTTP sin cifrar solo hacia los microservicios locales (ver res/xml). -->
+    <!-- Recurso nativo: notificaciones locales del estado del pedido. Peligroso desde
+         Android 13 (API 33); se pide en tiempo de ejecución al entrar a Retiro
+         (ui/components/PedirPermisoNotificaciones). En versiones anteriores se concede solo. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Recurso nativo: foto de perfil con la cámara (Perfil → TakePicture + FileProvider).
+         Al estar declarado, Android exige concederlo antes de abrir la cámara, por eso
+         Perfil.kt lo pide en tiempo de ejecución justo al tocar "Tomar foto".
+         El escáner QR (Google Code Scanner, ML Kit) NO usa este permiso: la cámara la
+         abre Google Play Services en su propio proceso. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- La cámara es opcional: la app se puede instalar en equipos sin cámara (la foto de
+         perfil simplemente no estará disponible). -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <!-- allowBackup=false: la base local (Room) y el token JWT (DataStore) no se copian a
+         la nube de Google. networkSecurityConfig: permite HTTP hacia los microservicios
+         locales de la demo (ver res/xml/network_security_config.xml). -->
     <application
         android:name=".CasaJojoApplication"
         android:allowBackup="false"
@@ -28,6 +43,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CasaJojo">
 
+        <!-- Única Activity (Compose + Navigation). exported=true es obligatorio porque
+             tiene el intent-filter LAUNCHER (el ícono del menú de apps la abre). -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -37,8 +54,10 @@
             </intent-filter>
         </activity>
 
-        <!-- Foto de perfil: entrega a la app de cámara una URI temporal para guardar la
-             imagen a resolución completa (no el thumbnail de TakePicturePreview). -->
+        <!-- Foto de perfil: entrega a la app de cámara una URI temporal content:// para guardar
+             la imagen a resolución completa (no el thumbnail de TakePicturePreview).
+             exported=false + grantUriPermissions: solo la app de cámara recibe permiso,
+             y únicamente sobre esa URI. Rutas en res/xml/rutas_fotos.xml (cache/camara/). -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fotos"
