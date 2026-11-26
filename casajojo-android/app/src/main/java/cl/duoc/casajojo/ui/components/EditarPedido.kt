@@ -1,6 +1,10 @@
 package cl.duoc.casajojo.ui.components
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +39,7 @@ fun EditarPedidoDialogo(
     onIndicaciones: (String) -> Unit,
     onGuardar: () -> Unit,
     onCerrar: () -> Unit,
+    platos: List<String> = emptyList(),
 ) {
     val pedido = estado.pedido ?: return
     // Horas que aún no pasan; se conserva la hora actual del pedido aunque ya no esté en la lista.
@@ -52,6 +57,23 @@ fun EditarPedidoDialogo(
                     "Puedes cambiar estos datos mientras la cocina no empiece a prepararlo.",
                     fontSize = 13.sp,
                 )
+                if (platos.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    // Solo lectura: recuerda qué platos lleva el pedido (no se editan aquí).
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        platos.forEach { nombre ->
+                            FotoPlato(
+                                nombre,
+                                alto = 52.dp,
+                                redondeo = 12.dp,
+                                modifier = Modifier.size(52.dp),
+                            )
+                        }
+                    }
+                }
                 CampoTexto(
                     etiqueta = "Nombre para el retiro",
                     valor = estado.nombre,

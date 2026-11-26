@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duoc.casajojo.data.local.entity.PedidoWithPlatos
 import cl.duoc.casajojo.ui.components.ChipRow
+import cl.duoc.casajojo.ui.components.FotoPlato
 import cl.duoc.casajojo.ui.components.Pill
 import cl.duoc.casajojo.ui.components.Titulo
 import cl.duoc.casajojo.ui.components.Volver
@@ -172,11 +174,24 @@ private fun TarjetaHistorial(datos: PedidoWithPlatos) {
             )
             Spacer(Modifier.height(8.dp))
             datos.platos.forEach { plato ->
-                Text(
-                    "• ${plato.nombreProteina}" +
-                            if (plato.solo) " (solo proteína)" else " — ${plato.acompanamientos.joinToString(" · ")}",
-                    fontSize = 14.sp,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                ) {
+                    FotoPlato(
+                        plato.nombreProteina,
+                        alto = 44.dp,
+                        redondeo = 10.dp,
+                        modifier = Modifier.size(44.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        plato.nombreProteina +
+                                if (plato.solo) " (solo proteína)" else " — ${plato.acompanamientos.joinToString(" · ")}",
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

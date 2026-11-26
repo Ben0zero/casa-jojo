@@ -7,6 +7,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.FilterQuality
@@ -85,8 +91,10 @@ fun emojiPlato(nombre: String): String {
 }
 
 /**
- * Imagen ilustrada de un plato: degradado de la marca con el glifo del plato.
- * Reemplaza al antiguo espacio reservado "📷 Foto del plato".
+ * Imagen de un plato. Si [imagenDePlato] encuentra la foto real se dibuja recortada
+ * (ContentScale.Crop + clip con [forma]) para que nunca se deforme ni deje bordes vacíos.
+ * Si no hay foto (por ejemplo, un plato nuevo del backend) se usa la ilustración con el
+ * glifo del plato como respaldo. [agotado] la muestra en escala de grises y atenuada.
  */
 @Composable
 fun FotoPlato(
@@ -94,7 +102,30 @@ fun FotoPlato(
     modifier: Modifier = Modifier,
     alto: Dp = 140.dp,
     redondeo: Dp = 16.dp,
+    sku: String? = null,
+    forma: Shape = RoundedCornerShape(redondeo),
+    agotado: Boolean = false,
+    degradado: Boolean = false,
 ) {
+    val foto = imagenDePlato(sku, nombre)
+    val contenedor = modifier
+        .fillMaxWidth()
+        .height(alto)
+        .clip(forma)
+    if (foto != null) {
+        Box(contenedor) {
+            Image(
+                painter = painterResource(foto),
+                contentDescription = nombre,
+                contentScale = ContentScale.Crop,
+                colorFilter = if (agotado) FILTRO_AGOTADO else null,
+                alpha = if (agotado) 0.6f else 1f,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (degradado) DegradadoInferior()
+        }
+        return
+    }
     val oscuro = isSystemInDarkTheme()
     val fondo = if (oscuro) {
         listOf(Color(0xFF1F4A37), Color(0xFF12301F))
@@ -102,11 +133,9 @@ fun FotoPlato(
         listOf(FotoFondo, Color(0xFFD3EAD8))
     }
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(alto)
-            .clip(RoundedCornerShape(redondeo))
-            .background(Brush.linearGradient(fondo)),
+        modifier = contenedor
+            .background(Brush.linearGradient(fondo))
+            .alpha(if (agotado) 0.6f else 1f),
         contentAlignment = Alignment.Center,
     ) {
         // Círculo dorado suave detrás del glifo: da profundidad sin parecer un error.
@@ -119,9 +148,24 @@ fun FotoPlato(
         Text(
             emojiPlato(nombre),
             fontSize = (alto.value * 0.40f).sp,
-            modifier = Modifier.semantics { contentDescription = "Imagen de $nombre" },
+            modifier = Modifier.semantics { contentDescription = nombre },
         )
     }
+}
+
+/** Escala de grises para platos agotados. */
+private val FILTRO_AGOTADO = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+
+/** Degradado oscuro suave en la parte baja de una foto, para que las etiquetas se lean. */
+@Composable
+fun BoxScope.DegradadoInferior(alturaRelativa: Float = 0.55f) {
+    Box(
+        Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .fillMaxHeight(alturaRelativa)
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))),
+    )
 }
 
 /**
@@ -214,13 +258,12 @@ fun TarjetaMenu(
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = elevacion,
         border = if (destacado) BorderStroke(2.dp, Ac) else BorderStroke(1.dp, Line),
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (disponible) 1f else 0.55f),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Column {
             Box(Modifier.padding(8.dp)) {
-                FotoPlato(nombre, alto = 124.dp, redondeo = 15.dp)
+                // La foto llena todo el recuadro superior; agotado → escala de grises.
+                FotoPlato(nombre, alto = 150.dp, redondeo = 15.dp, agotado = !disponible)
                 if (destacado) {
                     Box(
                         modifier = Modifier.matchParentSize().padding(8.dp),
@@ -241,7 +284,8 @@ fun TarjetaMenu(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .alpha(if (disponible) 1f else 0.6f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -298,7 +342,7 @@ fun TarjetaAcompanamiento(
     ) {
         Column(Modifier.padding(8.dp)) {
             Box {
-                FotoPlato(nombre, alto = 86.dp, redondeo = 12.dp)
+                FotoPlato(nombre, alto = 96.dp, redondeo = 12.dp)
                 Box(
                     modifier = Modifier.matchParentSize().padding(6.dp),
                     contentAlignment = Alignment.TopEnd,

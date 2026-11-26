@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -164,6 +165,9 @@ fun ViewMiPedido(
     if (vm.edicion.abierta) {
         EditarPedidoDialogo(
             estado = vm.edicion,
+            // Miniaturas de los platos del pedido que se está editando.
+            platos = pedido?.takeIf { it.pedido.id == vm.edicion.pedido?.id }
+                ?.platos?.map { it.nombreProteina }.orEmpty(),
             formasPago = FORMAS_PAGO,
             onNombre = vm::onEdicionNombre,
             onHora = vm::onEdicionHora,
@@ -192,8 +196,9 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
             Box(Modifier.padding(9.dp)) {
                 FotoPlato(
                     datos.platos.firstOrNull()?.nombreProteina ?: "Tu pedido",
-                    alto = 132.dp,
+                    alto = 150.dp,
                     redondeo = 16.dp,
+                    degradado = true,
                 )
                 Box(
                     Modifier.matchParentSize().padding(12.dp),
@@ -296,12 +301,24 @@ private fun TarjetaPedido(datos: PedidoWithPlatos, vm: ClienteViewModel) {
                         color = MaterialTheme.colorScheme.background,
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     ) {
-                        Text(
-                            "• ${plato.nombreProteina}" +
-                                    if (plato.solo) " (solo proteína)" else " — ${plato.acompanamientos.joinToString(" · ")}",
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(11.dp),
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(8.dp),
+                        ) {
+                            FotoPlato(
+                                plato.nombreProteina,
+                                alto = 44.dp,
+                                redondeo = 10.dp,
+                                modifier = Modifier.size(44.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                plato.nombreProteina +
+                                        if (plato.solo) " (solo proteína)" else " — ${plato.acompanamientos.joinToString(" · ")}",
+                                fontSize = 13.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
                 if (p.indicaciones.isNotBlank()) {

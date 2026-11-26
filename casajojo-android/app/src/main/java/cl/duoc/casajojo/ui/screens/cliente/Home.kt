@@ -38,7 +38,9 @@ import cl.duoc.casajojo.ui.components.Badge
 import cl.duoc.casajojo.ui.components.BarraNavegacion
 import cl.duoc.casajojo.ui.components.BarraPedido
 import cl.duoc.casajojo.ui.components.AvatarUsuario
-import cl.duoc.casajojo.ui.components.emojiPlato
+import cl.duoc.casajojo.ui.components.DegradadoInferior
+import cl.duoc.casajojo.ui.components.FotoPlato
+import cl.duoc.casajojo.ui.components.imagenDePlato
 import cl.duoc.casajojo.ui.components.inicialesDe
 import cl.duoc.casajojo.data.local.PerfilPhotoStorage
 import android.annotation.SuppressLint
@@ -47,7 +49,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.remember
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -176,13 +177,18 @@ fun ViewHome(
                             ImagenPlatoDelDia(alto = 160.dp)
                             // Las dos etiquetas van en fila (y bajan de línea si no caben),
                             // así nunca se tapan entre sí.
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.matchParentSize().padding(12.dp),
+                            // Abajo, sobre el degradado oscuro de la foto, para que se lean.
+                            Box(
+                                Modifier.matchParentSize().padding(12.dp),
+                                contentAlignment = Alignment.BottomStart,
                             ) {
-                                Badge("🔥 Listo en 10 min", color = Ac)
-                                Badge("Retiro express", color = Gold, colorTexto = Ink)
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Badge("🔥 Listo en 10 min", color = Ac)
+                                    Badge("Retiro express", color = Gold, colorTexto = Ink)
+                                }
                             }
                         }
                         Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
@@ -271,7 +277,6 @@ fun ViewHome(
                     ) {
                         items.forEach { (nombre, disponible) ->
                             CategoriaChip(
-                                emojiPlato(nombre),
                                 nombre,
                                 disponible,
                                 Modifier.weight(1f),
@@ -375,27 +380,36 @@ private fun FilaAcceso(glifo: String, texto: String, onClick: () -> Unit) {
 }
 
 /**
- * Imagen de la tarjeta principal. Si existe res/drawable-nodpi/plato_del_dia.jpg (o .png/.webp)
- * se muestra esa foto real recortada; si no, una composición ilustrada con la marca.
- * Se busca por nombre para que basta con copiar el archivo y recompilar, sin tocar código.
+ * Imagen de la tarjeta principal. Prioridad:
+ *  1. res/drawable-nodpi/plato_del_dia.(jpg|png|webp), si existe (se busca por nombre:
+ *     basta con copiar el archivo y recompilar, sin tocar código);
+ *  2. la foto real del Pollo asado (imagenDePlato);
+ *  3. la composición ilustrada con la marca.
+ * La foto llena el recuadro con esquinas redondeadas y un degradado oscuro abajo.
  */
 @SuppressLint("DiscouragedApi")
 @Composable
 private fun ImagenPlatoDelDia(alto: Dp) {
     val context = LocalContext.current
-    val foto = remember {
+    val delDia = remember {
         context.resources.getIdentifier("plato_del_dia", "drawable", context.packageName)
     }
-    if (foto != 0) {
-        Image(
-            painter = painterResource(foto),
-            contentDescription = "Plato del día de La Casa JoJo",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
+    val foto = delDia.takeIf { it != 0 } ?: imagenDePlato("CJ-PROT-01", "Pollo asado")
+    if (foto != null) {
+        Box(
+            Modifier
                 .fillMaxWidth()
                 .height(alto)
                 .clip(RoundedCornerShape(18.dp)),
-        )
+        ) {
+            Image(
+                painter = painterResource(foto),
+                contentDescription = if (delDia != 0) "Plato del día de La Casa JoJo" else "Pollo asado",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            DegradadoInferior()
+        }
         return
     }
     Box(
@@ -429,7 +443,6 @@ private fun ImagenPlatoDelDia(alto: Dp) {
 /** Chips circulares del menú real: decorativos, no crean rutas nuevas. */
 @Composable
 private fun CategoriaChip(
-    glifo: String,
     texto: String,
     disponible: Boolean,
     modifier: Modifier = Modifier,
@@ -445,12 +458,14 @@ private fun CategoriaChip(
             },
             shadowElevation = 2.dp,
         ) {
-            Box(
-                Modifier.size(58.dp).alpha(if (disponible) 1f else 0.6f),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(glifo, fontSize = 24.sp)
-            }
+            // Foto recortada en círculo que llena todo el chip (respaldo: glifo del plato).
+            FotoPlato(
+                nombre = texto,
+                alto = 58.dp,
+                forma = CircleShape,
+                agotado = !disponible,
+                modifier = Modifier.size(58.dp),
+            )
         }
         Spacer(Modifier.height(6.dp))
         Text(
