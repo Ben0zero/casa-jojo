@@ -14,7 +14,7 @@
 4. **Arma el pedido**: proteína → acompañamientos (o "solo proteína" a $3.000) → **carrito** (con **nutrición** de Open Food Facts) → **retiro y pago** (hora que aún no pasa, forma de pago, indicaciones).
 5. El pedido se envía a **ms-ventas** (Oracle Cloud) y se copia en **Room**. Si no hay red queda pendiente y se reenvía solo, sin duplicarse (`referencia` UUID).
 6. En **Mi pedido** sigue el estado, puede **cancelar en 15 s** (RF-13), **editar** nombre/hora/pago/indicaciones mientras siga *Recibido* (RF-12) y **retirar escaneando el QR de la tienda** (`casajojo://retiro?codigo=...`). El **Historial** filtra entregados y cancelados.
-7. **Perfil**: editar datos, cambiar contraseña, eliminar cuenta y **foto de perfil por cuenta** (cámara), que también aparece en el **avatar del Inicio**.
+7. **Perfil estilo Uber**: foto, nombre, correo, "Cerrar sesión" y un menú por secciones hacia **Configuración de cuenta** (datos, contraseña, eliminar cuenta), **Historial**, **Mi pedido**, **Billetera** (tarjetas simuladas), **Privacidad**, **Accesibilidad** (tema, texto grande, reducir animaciones) y **Quiénes somos**. La foto es **por cuenta** y también aparece en el avatar del Inicio.
 8. **APIs externas**: Open-Meteo (clima en el Inicio) y Open Food Facts (nutrición en el Carrito).
 9. **Recursos nativos**: cámara, escáner QR (Google Code Scanner), notificaciones locales, compartir y permiso de red local (Android 17).
 10. **Diseño**: fotos reales de los 14 platos, tema claro/oscuro, áreas táctiles de 48 dp y nuevo Login, barra superior y logo.
@@ -42,26 +42,28 @@ cl.duoc.casajojo/
 ├── CasaJojoApplication.kt   Crea el canal de notificaciones
 ├── MainActivity.kt          enableEdgeToEdge() + setContent { CasaJojoApp() }
 ├── data/
-│   ├── local/               CasaJojoDatabase (Room v3, migraciones 1→2→3), MenuSeed (14 productos),
+│   ├── local/               CasaJojoDatabase (Room v4, migraciones 1→2→3→4), MenuSeed (14 productos),
+│   │                        AccesibilidadPreferences (DataStore "accesibilidad", por usuario),
 │   │                        SesionPreferences (DataStore "sesion": usuario_id, ultimo_correo, auth_token),
 │   │                        PerfilPhotoStorage (foto por cuenta + DataStore "foto_perfil"), dao/, entity/
 │   ├── remote/              ApiService.kt (AuthApi, MenuApi, PedidoApi, ClimaApi, OpenFoodFactsApi),
 │   │                        RetrofitInstance, AuthInterceptor (JWT solo a nuestro host), ErroresRemotos, dto/
-│   └── repository/          AuthRepository, PedidoRepository, ClimaRepository, NutricionRepository
+│   └── repository/          AuthRepository, PedidoRepository, ClimaRepository, NutricionRepository, TarjetaRepository
 ├── domain/                  Kotlin puro (testeable en JVM)
 │   ├── error/               CasaJojoException (sellada) y subclases
-│   ├── model/               EstadoPedido, FormaPago (selladas), PlatoDraft, Nutricion
-│   └── usecase/             ReglasPedido, ValidacionesAuth, ValidacionesPerfil, QrRetiro
-├── navigation/AppRoutes.kt  sealed class con 12 rutas
+│   ├── model/               EstadoPedido, FormaPago (selladas, + Tarjeta), PlatoDraft, Nutricion, Accesibilidad
+│   └── usecase/             ReglasPedido, ValidacionesAuth, ValidacionesPerfil, ValidacionesTarjeta, QrRetiro
+├── navigation/AppRoutes.kt  sealed class con 17 rutas
 ├── ui/
 │   ├── App.kt               CasaJojoApp() + NavHost
 │   ├── components/          Campos, Componentes, Visual (FotoPlato, tarjetas, avatar), ImagenesPlatos,
 │   │                        CancelarPedido, EditarPedido, PermisoRechazado, PedirPermiso*, Aviso, Nota
 │   ├── layouts/             Pantalla (scroll + barra fija), BarraSuperior (logo + carrito)
 │   ├── screens/auth/        LoginScreen, RegistroScreen, RecuperarScreen
-│   ├── screens/cliente/     Home, Proteina, Acompanamientos, Carrito, Retiro, Confirmado, MiPedido, Historial, Perfil
+│   ├── screens/cliente/     Home, Proteina, Acompanamientos, Carrito, Retiro, Confirmado, MiPedido, Historial, Perfil,
+│   │                        ConfiguracionCuenta, Billetera, Privacidad, Accesibilidad, QuienesSomos
 │   ├── theme/Theme.kt       Colores claro/oscuro (Material 3)
-│   └── viewmodels/          4 ViewModels + fichas UiState
+│   └── viewmodels/          6 ViewModels (+ BilleteraViewModel, AccesibilidadViewModel) + fichas UiState
 └── utils/                   Contrasenas (PBKDF2), Notificaciones, Compartir, Formato
 ```
 
@@ -81,12 +83,19 @@ cl.duoc.casajojo/
 | `retiro` | `ViewRetiro()` | "Continuar" en Carrito |
 | `confirmado` | `ViewConfirmado()` | Pedido registrado (`popUpTo(home)`) |
 | `mi_pedido` | `ViewMiPedido()` | "Pedido" en la barra inferior, Confirmado |
-| `historial` | `ViewHistorial()` | Accesos rápidos, Mi pedido |
+| `historial` | `ViewHistorial()` | Perfil → "Historial de pedidos", Mi pedido |
 | `perfil` | `ViewPerfil()` | Avatar del Inicio, "Perfil" en la barra inferior |
+| `configuracion_cuenta` | `ViewConfiguracionCuenta()` | Perfil, Privacidad → "Eliminar cuenta…" |
+| `billetera` | `ViewBilletera()` | Perfil → "Billetera", Retiro → "Ir a la Billetera" |
+| `privacidad` | `ViewPrivacidad()` | Perfil → "Privacidad" |
+| `accesibilidad` | `ViewAccesibilidad()` | Perfil → "Accesibilidad" |
+| `quienes_somos` | `ViewQuienesSomos()` | Perfil → "Quiénes somos" |
 
 - Pantalla inicial: `AuthViewModel.estadoSesion` (`Cargando` → spinner; `Activa` → `home`; `Inactiva` → `login`).
 - Al iniciar sesión: `popUpTo(nav.graph.id) { inclusive = true }` → "atrás" no vuelve al login.
-- Al cerrar sesión: `authVm.cerrarSesion { vm.limpiarTodo(); navigate(login) }` descarta el carrito del usuario anterior.
+- Al cerrar sesión (botón del **Perfil**, con diálogo): `App.kt → cerrarSesion()` llama a `authVm.cerrarSesion { vm.limpiarTodo(); navigate(login) { popUpTo(nav.graph.id) { inclusive = true } } }`: borra la sesión de DataStore, descarta el carrito y deja solo el Login en la pila (Atrás no vuelve).
+- Subpantallas del Perfil: cada una tiene "← Volver" (`nav.popBackStack()`) y el botón Atrás de Android funciona igual. Todas reciben `barraPerfil` (`BarraNavegacion(activa = PestanaNav.PERFIL)`), así la pestaña Perfil queda marcada.
+- Mi pedido / Historial: si se abrieron desde el Perfil, "Volver" regresa al Perfil (`volverDesdePedidos()`); si no, a la portada.
 
 ---
 
@@ -108,13 +117,14 @@ cl.duoc.casajojo/
 
 | Dónde | Qué guarda | Por qué |
 |---|---|---|
-| **Room** `casa_jojo.db` (v3) | `productos` (copia del menú), `pedidos` (+ `remotoId`, `referencia`), `platos`, `usuarios` (copia de la cuenta con hash PBKDF2 + salt) | Datos relacionales y consultables sin red |
+| **Room** `casa_jojo.db` (**v4**) | `productos` (copia del menú), `pedidos` (+ `remotoId`, `referencia`), `platos`, `usuarios` (copia de la cuenta con hash PBKDF2 + salt), `tarjetas` (Billetera enmascarada, por `usuarioId`) | Datos relacionales y consultables sin red |
 | **DataStore** `sesion` | `usuario_id`, `ultimo_correo`, `auth_token` (JWT) | Pocos valores clave-valor, asíncrono, expone `Flow` |
+| **DataStore** `accesibilidad` | `tema_<id>`, `texto_grande_<id>`, `reducir_animaciones_<id>` | Preferencias por cuenta; reactivas para aplicar el tema al instante |
 | **DataStore** `foto_perfil` + `filesDir/foto_perfil_<id>.jpg` | Ruta y versión de la foto de **cada cuenta** | El binario va en archivo privado; DataStore permite reaccionar con `StateFlow` |
 | **APK** `res/drawable-nodpi/plato_*.webp` | Fotos fijas de los 14 platos | Funcionan sin red y no se descargan |
 | **Oracle Cloud** (microservicios) | Cuentas, roles, códigos de recuperación (hash), menú, pedidos | Fuente de verdad compartida con la cocina |
 
-- **Migraciones** (`data/local/CasaJojoDatabase.kt`): `MIGRACION_1_2` (tabla `usuarios` + `pedidos.usuarioId`) y `MIGRACION_2_3` (`remotoId`, `referencia`). No se usa `fallbackToDestructiveMigration` para no borrar pedidos pendientes.
+- **Migraciones** (`data/local/CasaJojoDatabase.kt`): `MIGRACION_1_2` (tabla `usuarios` + `pedidos.usuarioId`), `MIGRACION_2_3` (`remotoId`, `referencia`) y **`MIGRACION_3_4`** (crea `tarjetas` + índice `index_tarjetas_usuarioId`). Están en `MIGRACIONES` y la versión en la constante `VERSION = 4`. No se usa `fallbackToDestructiveMigration` para no borrar pedidos pendientes.
 - **Login** (`AuthRepository.iniciarSesion()`): primero ms-auth. Si responde 401 se rechaza (una clave antigua guardada en el teléfono no sirve); solo **sin servicio** se valida contra la copia local (PBKDF2, `utils/Contrasenas.kt`).
 
 ### 5.1 Foto de perfil por cuenta
@@ -158,6 +168,31 @@ cl.duoc.casajojo/
 | Pantalla chica: chips del Inicio en tercios exactos, barra de pedido de una línea, enlaces en fila propia | `Home.kt`, `Visual.kt`, `Carrito.kt` |
 
 ---
+
+## 7b. Perfil estilo Uber y nuevas pantallas
+
+| Pantalla | Qué hace | Archivo → función |
+|---|---|---|
+| **Perfil** | Avatar, nombre, correo, "Tomar foto", "Cerrar sesión" (rojo, con diálogo) y filas por sección (Cuenta, Pedidos, Pagos, Preferencias, Información) + versión (`BuildConfig.VERSION_NAME`) | `ui/screens/cliente/Perfil.kt → ViewPerfil()`; filas en `ui/components/MenuPerfil.kt → SeccionOpciones()`, `FilaOpcion()` (alto mínimo 56 dp, `Role.Button`) |
+| **Configuración de cuenta** | Correo solo lectura, "Mis datos", "Cambiar contraseña", "Eliminar cuenta" (misma lógica de antes) | `ConfiguracionCuenta.kt → ViewConfiguracionCuenta()` + `PerfilViewModel` |
+| **Billetera** (simulada) | Lista de tarjetas con diseño de plástico, predeterminada, eliminar con confirmación, estado vacío y formulario con errores por campo | `Billetera.kt → ViewBilletera()`, `BilleteraViewModel`, `TarjetaRepository`, `ValidacionesTarjeta` |
+| **Privacidad** | Qué se guarda y dónde, estado de Cámara/Notificaciones (se relee en `onResume` con `LifecycleResumeEffect`), "Administrar permisos", eliminar foto y acceso a eliminar cuenta | `Privacidad.kt → ViewPrivacidad()`; `PermisoRechazado.kt → abrirAjustesDeLaApp()` |
+| **Accesibilidad** | Tema Sistema/Claro/Oscuro (`RadioButton` + `selectableGroup`), Texto grande y Reducir animaciones (`Switch` + `toggleable`), vista previa | `Accesibilidad.kt → ViewAccesibilidad()`, `AccesibilidadViewModel`, `AccesibilidadPreferences` |
+| **Quiénes somos** | Logo, descripción, equipo, DSY1105 – Duoc UC y versión; contacto en `strings.xml` | `QuienesSomos.kt → ViewQuienesSomos()`, `res/values/strings.xml` |
+
+**Billetera, paso a paso**
+1. `BilleteraViewModel.onNumero()` guarda **solo dígitos** (máx. 19); `ui/components/FormatoTarjeta.kt → FormatoNumeroTarjeta` los muestra en grupos de 4 con una `VisualTransformation` (si el formato se metiera en el texto, el cursor se desfasaría y los dígitos se desordenarían). Igual con `FormatoVencimiento` ("MM/AA").
+2. `agregar()` valida con `ValidacionesTarjeta.validar()`; si hay errores, cada campo muestra su mensaje y desde ahí se revalida al escribir.
+3. `TarjetaRepository.agregar()` vuelve a validar y construye un `Tarjeta` con marca, `ultimos4`, titular, mes/año y alias: **la entidad no tiene campos para el número ni el CVV**. La primera tarjeta queda predeterminada.
+4. Al guardar o cerrar el formulario (también al salir de la pantalla, `DisposableEffect`), el número y el CVV se borran de memoria.
+5. `marcarPredeterminada()` usa un único `UPDATE tarjetas SET predeterminada = (id = :id)`; al eliminar la predeterminada, la más reciente que quede pasa a serlo.
+6. En **Retiro y pago**, la forma de pago "Tarjeta" (`FormaPago.Tarjeta`) muestra las tarjetas para elegir ("Visa •••• 4242") o un botón "Ir a la Billetera". `ClienteViewModel.confirmarPedido()` exige una tarjeta elegida (`MSG_SIN_TARJETA`). A ms-ventas solo viaja "Tarjeta"; no se cobra nada.
+
+**Accesibilidad en toda la app**
+- `CasaJojoApp()` crea **un** `AccesibilidadViewModel` y pasa `opciones` a `CasaJojoTheme(opciones)` (`ui/theme/Theme.kt`).
+- Tema: elige `DarkColors`/`LightColors` y lo publica en `LocalTemaOscuro`; las pantallas usan `esTemaOscuro()` en vez de `isSystemInDarkTheme()`. También ajusta los íconos de la barra de estado (`WindowCompat.getInsetsController`).
+- Texto grande: `CompositionLocalProvider(LocalDensity provides Density(density, fontScale × 1.15))` → todo texto en `sp` crece, sin tocar cada pantalla.
+- Reducir animaciones: `LocalReducirAnimaciones`; el `NavHost` usa `EnterTransition.None`/`ExitTransition.None` y `duracionAnimacion(ms)` devuelve 0 en `PasoBar`, `TotalAnimado` e `Historial`.
 
 ## 8. Recursos nativos y permisos
 
@@ -269,8 +304,8 @@ Ambas por **HTTPS**, sin API key y con clientes separados: el `AuthInterceptor` 
 
 ## 14. Pruebas y cobertura
 
-- `gradlew testDebugUnitTest` → **181 pruebas en 20 clases, 0 fallos**.
-- `gradlew jacocoTestReportCore` → **92,0 % de líneas** (1282/1393) en ViewModel + Repository + domain; `jacocoVerificar80` exige ≥ 80 %.
+- `gradlew testDebugUnitTest` → **216 pruebas en 25 clases, 0 fallos**.
+- `gradlew jacocoTestReportCore` → **92,2 % de líneas** (1499/1625; 88,7 % de instrucciones) en ViewModel + Repository + domain; `jacocoVerificar80` exige ≥ 80 %.
 - Se excluyen de la cobertura las pantallas y componentes Compose, Room/DataStore generados, Retrofit y utilidades de Android (se validan en el emulador).
 
 | Clase de test | Tests | | Clase de test | Tests |
@@ -285,8 +320,11 @@ Ambas por **HTTPS**, sin API key y con clientes separados: el `AuthInterceptor` 
 | `ValidacionesPerfilTest` | 5 | | `AuthInterceptorTest` | 4 |
 | `CasaJojoExceptionTest` | 4 | | `ClimaViewModelTest` | 3 |
 | `QrRetiroTest` | 3 | | `ClimaRepositoryTest` | 2 |
+| `ValidacionesTarjetaTest` | 10 | | `BilleteraViewModelTest` | 7 |
+| `TarjetaRepositoryTest` | 6 | | `AccesibilidadViewModelTest` | 6 |
+| `MigracionesRoomTest` | 4 | | | |
 
-APK release firmado: `apk/CasaJojo-release.apk`, **11,56 MB**, firma v2 (CN=La Casa JoJo).
+APK release firmado: `apk/CasaJojo-release.apk`, **11,64 MB**, firma v2 (CN=La Casa JoJo).
 
 ---
 
@@ -331,7 +369,17 @@ APK release firmado: `apk/CasaJojo-release.apk`, **11,56 MB**, firma v2 (CN=La C
 **Diseño**
 
 25. **¿Cómo resolvieron el tema oscuro?** Usando `MaterialTheme.colorScheme` en vez de colores fijos (`Aviso.kt`, `Home.kt`, `Theme.kt`).
-26. **¿Cómo cumplen los 48 dp?** `minimumInteractiveComponentSize()` en los enlaces del Carrito y `defaultMinSize(minHeight = 48.dp)` en la barra inferior (`Visual.kt → ItemNav()`).
+26. **¿Cómo cumplen los 48 dp?** `minimumInteractiveComponentSize()` en los enlaces del Carrito y `defaultMinSize(minHeight = 48.dp)` en la barra inferior (`Visual.kt → ItemNav()`), en las filas del Perfil (`MenuPerfil.kt → FilaOpcion()`, 56 dp) y en las opciones de Accesibilidad.
+
+**Perfil, Billetera y Accesibilidad**
+
+27. **¿Por qué no guardan el número completo de la tarjeta ni el CVV?** Porque no los necesitamos y guardarlos sería un riesgo: si alguien copia la base (teléfono rooteado, respaldo) tendría tarjetas utilizables. Las normas de la industria (PCI DSS) prohíben guardar el CVV después de autorizar y piden no guardar el número completo sin protección; las apps reales lo dejan en la pasarela de pago. Para reconocer la tarjeta basta "Visa •••• 4242". En el código: `Tarjeta.kt` no tiene campos para el número ni el CVV; `TarjetaRepository.agregar()` los recibe solo para validarlos; el formulario se vacía al guardar (`BilleteraViewModel`), y lo prueban `TarjetaRepositoryTest` y `BilleteraViewModelTest` ("nunca guarda el número completo ni el CVV"). Tampoco se escribe en Log.
+28. **¿Cómo funciona la migración de Room?** Room guarda la versión del esquema en la base. Al abrirla con `version = 4`, si el teléfono tenía la 3, ejecuta `CasaJojoDatabase.MIGRACION_3_4.migrate()`, que hace `CREATE TABLE IF NOT EXISTS tarjetas (...)` y crea el índice por `usuarioId`. No toca las otras tablas, así que pedidos y cuentas se conservan. Después Room compara la tabla resultante con la entidad `Tarjeta`; si el SQL no calzara exacto, lanzaría un error al abrir. Las migraciones están encadenadas en `MIGRACIONES` (1→2→3→4) y no usamos `fallbackToDestructiveMigration`, que borraría la base. `MigracionesRoomTest` revisa la cadena y el SQL, y se probó en el emulador actualizando una instalación en versión 3.
+29. **¿Cómo se aplican las opciones de accesibilidad en toda la app?** Hay un solo `AccesibilidadViewModel` en `CasaJojoApp()`. Sus `opciones` (StateFlow que lee DataStore por usuario) entran a `CasaJojoTheme(opciones)`, que envuelve toda la app: elige la paleta clara u oscura, multiplica `fontScale` por 1,15 con `LocalDensity` (todo texto en `sp` crece) y publica `LocalReducirAnimaciones`, que usan el `NavHost` y `duracionAnimacion()`. Al tocar una opción se guarda en DataStore, el Flow emite y Compose recompone toda la app al instante, sin reiniciar.
+30. **¿Por qué el número de la tarjeta se formatea con `VisualTransformation`?** Si se insertaran los espacios en el texto, el cursor quedaría en una posición distinta a la esperada y los dígitos se desordenarían al escribir. El ViewModel guarda solo dígitos y `FormatoNumeroTarjeta` solo los dibuja agrupados (`ui/components/FormatoTarjeta.kt`).
+31. **¿Qué es el algoritmo de Luhn?** Una suma de control: desde la derecha se duplica un dígito sí y otro no (restando 9 si pasa de 9) y la suma debe ser múltiplo de 10. Detecta errores de tipeo. `ValidacionesTarjeta.luhnValido()`.
+32. **¿Las tarjetas de una cuenta las ve otra cuenta del mismo teléfono?** No: todas las consultas de `TarjetaDao` filtran por `usuarioId` y `BilleteraViewModel.tarjetas` cambia de lista al cambiar la sesión (`flatMapLatest`). Al eliminar la cuenta se borran (`PerfilViewModel` → `tarjetaDao().borrarDelUsuario()`).
+33. **¿Cómo se cierra la sesión sin poder volver con Atrás?** `App.kt → cerrarSesion()`: borra la sesión en DataStore y navega al Login con `popUpTo(nav.graph.id) { inclusive = true }`, que vacía toda la pila.
 
 ---
 

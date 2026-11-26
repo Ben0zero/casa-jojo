@@ -97,9 +97,10 @@ con **Ir a ajustes**; también se puede activar en Ajustes → Apps → La Casa 
 | 6 | Cocina avanza el pedido a LISTO (paso 7) y la app lo refleja | Mi pedido |
 | 7 | Retiro con el QR de la tienda → Entregado y Pagado | Mi pedido |
 | 8 | Historial (Entregados / Cancelados) | Historial |
-| 9 | Perfil: foto con cámara (pide `CAMERA` al tocar; si se rechaza, diálogo con "Ir a ajustes"), editar nombre y celular, cambiar contraseña. Volver al Inicio: el avatar ya muestra la foto | Perfil |
-| 9b | Cambiar el teléfono a tema oscuro: todas las pantallas se adaptan | Ajustes del sistema |
-| 10 | Eliminar cuenta con diálogo de confirmación | Perfil |
+| 9 | Perfil (estilo Uber): foto con cámara (pide `CAMERA` al tocar; si se rechaza, diálogo con "Ir a ajustes"); el avatar del Inicio ya muestra la foto. Configuración de cuenta: editar nombre y celular, cambiar contraseña | Perfil |
+| 9b | Billetera (simulada): agregar `4242 4242 4242 4242` (12/29, CVV 123) y mostrar errores con `4242 4242 4242 4241`; marcar predeterminada y eliminar. En Retiro y pago elegir "Tarjeta" → "Visa •••• 4242" | Perfil → Billetera |
+| 9c | Accesibilidad: Oscuro + Texto grande se aplican al instante en toda la app; Privacidad: estado de permisos y "Administrar permisos" | Perfil → Preferencias |
+| 10 | Eliminar cuenta con diálogo de confirmación (borra también sus tarjetas) y Cerrar sesión desde el Perfil | Configuración de cuenta / Perfil |
 
 **Código de recuperación:** si no hay SMTP en el `.env`, ms-auth está en modo "log":
 

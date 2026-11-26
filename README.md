@@ -19,7 +19,12 @@ Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 **Cuenta**
 - Registro e inicio de sesión por correo, con validación por campo y sesión persistente (DataStore + JWT).
 - **¿Olvidaste tu contraseña?**: correo → código de 6 dígitos (un solo uso, vence en 15 min) → nueva contraseña.
-- **Perfil**: ver y editar nombre y celular, cambiar contraseña (pide la actual), **eliminar cuenta** con diálogo de confirmación y foto de perfil con la cámara.
+- **Perfil (estilo Uber)**: avatar con la foto, nombre y correo, "Tomar foto con la cámara" y **Cerrar sesión** (con confirmación; borra la sesión de DataStore y vuelve al Login con `popUpTo`, sin volver con Atrás). Debajo, opciones agrupadas (Cuenta, Pedidos, Pagos, Preferencias, Información) como filas de ≥ 48 dp con ícono, título, subtítulo y flecha, y la versión de la app (`BuildConfig.VERSION_NAME`). La pestaña "Perfil" de la barra inferior queda marcada en todas sus subpantallas.
+- **Configuración de cuenta**: "Mis datos" (nombre y celular → `PUT /api/usuarios/me`), "Cambiar contraseña" (`PUT /api/usuarios/me/password`) y "Eliminar cuenta" (`DELETE /api/usuarios/me`), con la misma lógica y validaciones de antes (`PerfilViewModel`). El correo es solo lectura.
+- **Billetera (SIMULADA)**: tarjetas guardadas con diseño de tarjeta (marca, •••• últimos 4, titular, vencimiento), predeterminada y eliminar con confirmación. "Agregar tarjeta" valida con `domain/usecase/ValidacionesTarjeta.kt`: 13–19 dígitos con **Luhn**, marca (Visa, Mastercard, American Express u "Otra"), formato en grupos de 4, vencimiento MM/AA no vencido, CVV de 3 dígitos (4 en Amex) y titular solo letras. **Nunca se guarda el número completo ni el CVV**: Room (tabla `tarjetas`, por usuario) solo tiene marca, últimos 4, titular, mes/año, alias y predeterminada. Al eliminar la cuenta se borran sus tarjetas. En "Retiro y pago" se puede pagar con "Tarjeta" eligiendo una guardada ("Visa •••• 4242"); a ms-ventas solo viaja la forma de pago "Tarjeta" (no se cobra nada).
+- **Privacidad**: qué se guarda en el teléfono (Room, DataStore) y en el servidor, estado de los permisos de Cámara y Notificaciones con "Administrar permisos" (abre los ajustes de la app), "Eliminar foto de perfil" y acceso a eliminar la cuenta.
+- **Accesibilidad**: tema Sistema/Claro/Oscuro, **texto grande** (×1,15 en toda la app) y **reducir animaciones**, guardados en DataStore **por usuario** y aplicados al instante en toda la app por `CasaJojoTheme`. Incluye una vista previa.
+- **Quiénes somos**: logo, descripción, equipo, asignatura DSY1105 (Duoc UC) y versión. La dirección y el teléfono están en `res/values/strings.xml` para completarlos.
 - **Foto de perfil por cuenta**: cada usuario tiene su propia foto (`filesDir/foto_perfil_<id>.jpg`, ruta y versión en DataStore). `PerfilPhotoStorage.foto` es un `StateFlow` combinado con la sesión, así que el **avatar del Inicio** y el de Perfil se actualizan al instante. La cámara escribe la foto a **resolución completa** (`TakePicture` + `FileProvider`), se endereza según EXIF y se guarda a máx. 1080 px.
 
 **Pedido**
@@ -172,7 +177,7 @@ Paso a paso de la presentación (hotspot, IP, firewall, QR y plan B): **[docs/DE
 
 | Archivo | Ubicación |
 |---|---|
-| APK release firmado (apunta a `10.0.2.2`, **11,56 MB**) | `casajojo-android/apk/CasaJojo-release.apk` |
+| APK release firmado (apunta a `10.0.2.2`, **11,64 MB**) | `casajojo-android/apk/CasaJojo-release.apk` |
 | Keystore (`.jks`) | `casajojo-android/app/keystore/casajojo-release.jks` |
 | Configuración de firma | `casajojo-android/keystore.properties` → `signingConfigs.release` en `app/build.gradle.kts` |
 
@@ -186,11 +191,16 @@ proyecto real irían en un gestor de secretos.
 
 | Dónde | Qué guarda | Por qué |
 |---|---|---|
-| **Room** (SQLite en el teléfono) | `productos` (copia del menú), `pedidos` + `platos` (con `remotoId` y `referencia` UUID), `usuarios` (nombre, correo, celular y hash PBKDF2 + salt de la contraseña) | Datos **estructurados y relacionales** que la app consulta con filtros (historial por estado, pedido en curso) y que deben seguir disponibles **sin red**. Permite crear un pedido offline y reenviarlo después sin duplicarlo. |
-| **DataStore Preferences** | `usuario_id` de la sesión, `ultimo_correo` y el token JWT | Son **pocos valores clave-valor** de configuración/sesión. DataStore es asíncrono y transaccional (no bloquea la UI como SharedPreferences) y no necesita tablas. Nunca guarda contraseñas. |
+| **Room** (SQLite en el teléfono) | `productos` (copia del menú), `pedidos` + `platos` (con `remotoId` y `referencia` UUID), `tarjetas` (Billetera: solo marca, últimos 4, titular, vencimiento, alias y predeterminada, por `usuarioId`), `usuarios` (nombre, correo, celular y hash PBKDF2 + salt de la contraseña) | Datos **estructurados y relacionales** que la app consulta con filtros (historial por estado, pedido en curso) y que deben seguir disponibles **sin red**. Permite crear un pedido offline y reenviarlo después sin duplicarlo. |
+| **DataStore Preferences** | `sesion`: `usuario_id`, `ultimo_correo` y el token JWT; `accesibilidad`: tema, texto grande y reducir animaciones **por usuario** (`tema_<id>`…); `foto_perfil`: ruta y versión de la foto | Son **pocos valores clave-valor** de configuración/sesión. DataStore es asíncrono y transaccional (no bloquea la UI como SharedPreferences) y no necesita tablas. Nunca guarda contraseñas. |
 | **Archivo privado** (`filesDir`) + DataStore `foto_perfil` | Foto de perfil, **una por cuenta** (`foto_perfil_<id>.jpg`); DataStore guarda su ruta y versión | Un binario grande no corresponde a Room; DataStore solo guarda la ruta para que el avatar reaccione (`StateFlow`). |
 | **Recursos del APK** (`res/drawable-nodpi`) | Fotos de los 14 platos (WebP, 16–41 KB c/u) | Son fijas del menú: viajan dentro del APK y funcionan sin red. |
 | **Oracle Cloud** (vía microservicios) | Cuentas y roles (`usuarios`, `roles`), códigos de recuperación (`cj_codigos_recuperacion`, solo hash), menú (`productos` CJ-*), pedidos (`pedidos_casajojo` + detalle) | Es la **fuente de verdad compartida**: la cocina ve los pedidos de todos los clientes, el estado lo cambia la cocina, las contraseñas se validan en el servidor (BCrypt) y una cuenta sirve en cualquier teléfono. |
+
+La base Room va en la **versión 4**: `MIGRACION_1_2` (usuarios), `MIGRACION_2_3` (vínculo con
+ms-ventas) y `MIGRACION_3_4` (crea la tabla `tarjetas` y su índice, sin tocar los datos
+existentes). No se usa `fallbackToDestructiveMigration`. Se verificó actualizando una
+instalación real en versión 3: conservó los pedidos y la cuenta.
 
 Estrategia **API primero, caché después**: los Repository llaman a los microservicios y
 reflejan la respuesta en Room; si el servidor no responde, la app sigue con la copia local.
@@ -212,22 +222,26 @@ referencia que no cambia el pedido.
 
 ```powershell
 cd casajojo-android
-.\gradlew testDebugUnitTest      # 181 pruebas en 20 clases (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
+.\gradlew testDebugUnitTest      # 216 pruebas en 25 clases (JUnit 4, MockK, Kotest, kotlinx-coroutines-test)
 .\gradlew jacocoTestReportCore   # reporte HTML/XML en app/build/reports/jacoco/jacocoTestReportCore/
 .\gradlew jacocoVerificar80      # falla si la cobertura de líneas baja de 80%
 ```
 
-**Cobertura JaCoCo de ViewModel + Repository + domain: 92,0% de líneas** (1282/1393;
-88,5% de instrucciones). Se excluyen las pantallas Compose, DAO/Room/DataStore generados,
+**Cobertura JaCoCo de ViewModel + Repository + domain: 92,2% de líneas** (1499/1625;
+88,7% de instrucciones). Se excluyen las pantallas Compose, DAO/Room/DataStore generados,
 Retrofit y utilidades de Android, que se validan en el emulador.
 
 Todos los ViewModel (`AuthViewModel`, `ClienteViewModel`, `PerfilViewModel`,
-`ClimaViewModel`) y Repository (`AuthRepository`, `PedidoRepository`, `ClimaRepository`,
-`NutricionRepository`)
+`ClimaViewModel`, `BilleteraViewModel`, `AccesibilidadViewModel`) y Repository
+(`AuthRepository`, `PedidoRepository`, `ClimaRepository`, `NutricionRepository`,
+`TarjetaRepository`)
 tienen pruebas, incluidas la recuperación de contraseña, el perfil, la edición de pedidos,
 el reintento del clima, el estado de nutrición del Carrito, la traducción de errores y la
-asociación plato → foto (`ImagenesPlatosTest`: los 14 SKU tienen foto y uno desconocido
-devuelve `null`).
+asociación plato → foto (`ImagenesPlatosTest`), las reglas de la tarjeta
+(`ValidacionesTarjetaTest`: Luhn, marcas, vencimiento, CVV por marca y titular), que la
+Billetera **nunca guarde el número completo ni el CVV** (`TarjetaRepositoryTest`,
+`BilleteraViewModelTest`), las opciones de accesibilidad (`AccesibilidadViewModelTest`) y
+las migraciones de Room (`MigracionesRoomTest`).
 
 Microservicios (JUnit 5 + Mockito, sin Oracle):
 

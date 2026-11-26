@@ -177,6 +177,8 @@ val excluidosCobertura = listOf(
     "cl/duoc/casajojo/data/local/CasaJojoDatabase*",
     "cl/duoc/casajojo/data/local/RoomTransactionRunner*",
     "cl/duoc/casajojo/data/local/SesionPreferences*",
+    "cl/duoc/casajojo/data/local/AccesibilidadPreferences*",
+    "cl/duoc/casajojo/data/local/AccesibilidadPreferencesKt*",
     "cl/duoc/casajojo/data/local/Converters*",
     "cl/duoc/casajojo/data/local/PerfilPhotoStorage*",
     "cl/duoc/casajojo/data/local/TransactionRunner*",

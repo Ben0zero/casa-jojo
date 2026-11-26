@@ -1,7 +1,7 @@
 package cl.duoc.casajojo.ui.layouts
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
+import cl.duoc.casajojo.ui.theme.esTemaOscuro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,7 +37,7 @@ fun Pantalla(
     bar: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    val claro = !isSystemInDarkTheme()
+    val claro = !esTemaOscuro()
     Column(
         modifier = Modifier
             .fillMaxSize()

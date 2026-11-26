@@ -1,5 +1,17 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import cl.duoc.casajojo.data.local.entity.Tarjeta
 import cl.duoc.casajojo.domain.model.FormaPago
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,6 +56,9 @@ fun ViewRetiro(
     vm: ClienteViewModel,
     onVolver: () -> Unit,
     onConfirmar: () -> Unit,
+    /** Billetera (simulada): tarjetas guardadas de la cuenta. */
+    tarjetas: List<Tarjeta> = emptyList(),
+    onIrBilletera: () -> Unit = {},
 ) {
     ErrorEcho(vm.error) { vm.limpiarError() }
 
@@ -56,6 +71,14 @@ fun ViewRetiro(
     val horas = remember { ReglasPedido.horasDisponibles(LocalTime.now()) }
     LaunchedEffect(horas) {
         if (horas.isNotEmpty() && vm.retiro.horaRetiro !in horas) vm.onHoraRetiro(horas.first())
+    }
+
+    // Billetera: con "Tarjeta", si no hay una elegida (o se eliminó) se toma la predeterminada.
+    val pagaConTarjeta = FormaPago.desde(vm.retiro.formaPago) == FormaPago.Tarjeta
+    LaunchedEffect(pagaConTarjeta, tarjetas) {
+        if (pagaConTarjeta && tarjetas.none { it.id == vm.retiro.tarjetaId }) {
+            vm.onTarjeta((tarjetas.firstOrNull { it.predeterminada } ?: tarjetas.firstOrNull())?.id)
+        }
     }
 
     Pantalla {
@@ -89,6 +112,14 @@ fun ViewRetiro(
             TituloBloque("💳", "Forma de pago")
             Spacer(Modifier.height(10.dp))
             ChipRow(FORMAS_PAGO, vm.retiro.formaPago, vm::onFormaPago)
+            if (pagaConTarjeta) {
+                SelectorTarjeta(
+                    tarjetas = tarjetas,
+                    elegida = vm.retiro.tarjetaId,
+                    onElegir = vm::onTarjeta,
+                    onIrBilletera = onIrBilletera,
+                )
+            }
 
             Spacer(Modifier.height(20.dp))
             TituloBloque("📝", "Indicaciones (opcional)")
@@ -101,7 +132,11 @@ fun ViewRetiro(
             )
 
             Nota(
-                "El método de pago se usará al retirar el pedido. Si elegiste pagar en tienda, podrás escanear el QR desde Mi pedido cuando esté listo."
+                if (pagaConTarjeta) {
+                    "Pago con tarjeta simulado: no se realiza ningún cobro. Retiras tu pedido con el QR desde Mi pedido cuando esté listo."
+                } else {
+                    "El método de pago se usará al retirar el pedido. Si elegiste pagar en tienda, podrás escanear el QR desde Mi pedido cuando esté listo."
+                }
             )
 
             Spacer(Modifier.height(24.dp))
@@ -114,5 +149,49 @@ fun ViewRetiro(
                 enabled = !vm.enRegistro,
             )
         }
+    }
+}
+
+/**
+ * Billetera (simulada): elegir con qué tarjeta guardada "pagar" ("Visa •••• 4242").
+ * Sin tarjetas, ofrece ir a la Billetera. No se cobra nada real.
+ */
+@Composable
+private fun SelectorTarjeta(
+    tarjetas: List<Tarjeta>,
+    elegida: Long?,
+    onElegir: (Long) -> Unit,
+    onIrBilletera: () -> Unit,
+) {
+    if (tarjetas.isEmpty()) {
+        Nota("Aún no tienes tarjetas guardadas. Agrega una en tu Billetera para pagar con tarjeta (simulado).")
+        Spacer(Modifier.height(10.dp))
+        Boton("💳  Ir a la Billetera", onClick = onIrBilletera, estilo = "fantasma")
+        return
+    }
+    Column(Modifier.padding(top = 10.dp).selectableGroup()) {
+        tarjetas.forEach { t ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = t.id == elegida, onClick = { onElegir(t.id) }, role = Role.RadioButton)
+                    .defaultMinSize(minHeight = 48.dp),
+            ) {
+                RadioButton(selected = t.id == elegida, onClick = null)
+                Spacer(Modifier.width(8.dp))
+                Text(t.etiqueta, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text(
+                    "vence ${t.vencimiento}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            "Simulación: no se realizan cobros reales.",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

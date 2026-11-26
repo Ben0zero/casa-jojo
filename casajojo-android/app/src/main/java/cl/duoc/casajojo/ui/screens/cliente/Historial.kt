@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.screens.cliente
 
+import cl.duoc.casajojo.ui.theme.duracionAnimacion
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -90,10 +91,11 @@ fun ViewHistorial(
                 Spacer(Modifier.height(6.dp))
                 // contentKey = filtro: anima al cambiar de chip, no en cada
                 // actualización de Room con el mismo filtro.
+                val fundido = duracionAnimacion(250)
                 AnimatedContent(
                     targetState = historial,
                     contentKey = { it.filtro },
-                    transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(150)) },
+                    transitionSpec = { fadeIn(tween(fundido)) togetherWith fadeOut(tween(fundido * 3 / 5)) },
                     label = "historial",
                 ) { estado ->
                     ListaHistorial(estado)
@@ -109,14 +111,17 @@ private fun ListaHistorial(estado: HistorialUiState) {
         HistorialVacio(estado.filtro)
         return
     }
+    // Accesibilidad: con "Reducir animaciones" las tarjetas aparecen de inmediato.
+    val ms = duracionAnimacion(300)
+    val paso = duracionAnimacion(50)
     Column {
         estado.pedidos.forEachIndexed { i, datos ->
             key(datos.pedido.id) {
                 val visible = remember { MutableTransitionState(false).apply { targetState = true } }
                 AnimatedVisibility(
                     visibleState = visible,
-                    enter = fadeIn(tween(300, delayMillis = 50 * i.coerceAtMost(6))) +
-                            slideInVertically(tween(300, delayMillis = 50 * i.coerceAtMost(6))) { it / 4 },
+                    enter = fadeIn(tween(ms, delayMillis = paso * i.coerceAtMost(6))) +
+                            slideInVertically(tween(ms, delayMillis = paso * i.coerceAtMost(6))) { it / 4 },
                 ) {
                     TarjetaHistorial(datos)
                 }

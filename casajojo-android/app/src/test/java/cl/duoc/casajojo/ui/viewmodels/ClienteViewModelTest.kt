@@ -407,4 +407,34 @@ class ClienteViewModelTest {
         vm.limpiarTodo()
         vm.nutricionPorPlato shouldBe emptyMap()
     }
+
+    @Test
+    fun `con Tarjeta exige elegir una tarjeta de la Billetera`() {
+        coEvery { repo.registrarPedido(any(), any(), any(), any(), any(), any(), any(), any()) } returns 9
+        val vm = vm()
+        armarCarrito(vm)
+        vm.onNombre("Camila")
+        vm.onHoraRetiro("13:00")
+        vm.onFormaPago("Tarjeta")
+        var navego = false
+        vm.confirmarPedido { navego = true }
+        navego.shouldBeFalse()
+        vm.error shouldBe MSG_SIN_TARJETA
+
+        vm.onTarjeta(5L)
+        vm.confirmarPedido { navego = true }
+        navego.shouldBeTrue()
+        // A ms-ventas solo viaja la forma de pago "Tarjeta": el flujo de pedidos no cambia.
+        coVerify { repo.registrarPedido(11L, "Camila", "13:00", "Tarjeta", any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `cambiar de Tarjeta a otra forma de pago olvida la tarjeta`() {
+        val vm = vm()
+        vm.onFormaPago("Tarjeta")
+        vm.onTarjeta(5L)
+        vm.retiro.tarjetaId shouldBe 5L
+        vm.onFormaPago("Transferencia")
+        vm.retiro.tarjetaId shouldBe null
+    }
 }

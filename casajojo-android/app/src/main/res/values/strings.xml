@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">La Casa JoJo</string>
+
+    <!-- Quiénes somos: textos editables. La dirección, el teléfono y el horario NO se
+         inventaron: reemplázalos aquí por los datos reales del local. -->
+    <string name="quienes_descripcion">La Casa JoJo es un restaurante de almuerzos donde armas tu menú a tu gusto: eliges una proteína, le sumas tus acompañamientos y lo retiras a la hora que quieras, sin filas.</string>
+    <string name="quienes_direccion">Dirección: por confirmar</string>
+    <string name="quienes_telefono">Teléfono: por confirmar</string>
+    <string name="quienes_horario">Horario de retiro: 12:00 a 15:00</string>
+    <string name="quienes_asignatura">DSY1105 – Desarrollo de Aplicaciones Móviles</string>
+    <string name="quienes_institucion">Duoc UC</string>
 </resources>

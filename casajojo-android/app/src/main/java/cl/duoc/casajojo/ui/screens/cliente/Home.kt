@@ -4,7 +4,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
+import cl.duoc.casajojo.ui.theme.esTemaOscuro
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -78,19 +78,16 @@ fun ViewHome(
     vm: ClienteViewModel,
     onComenzar: () -> Unit,
     onMiPedido: () -> Unit,
-    onHistorial: () -> Unit,
     onPerfil: () -> Unit,
-    onCerrarSesion: () -> Unit,
     fotoPerfil: PerfilPhotoStorage.Foto? = null,
 ) {
     val usuario by vm.usuario.collectAsState()
-    val ultimoPedido by vm.ultimoPedido.collectAsState()
     val proteinas by vm.proteinas.collectAsState()
 
     // API externa (Open-Meteo): estado separado del ViewModel del pedido.
     val climaVm: ClimaViewModel = viewModel()
     val clima by climaVm.estado.collectAsState()
-    val oscuro = isSystemInDarkTheme()
+    val oscuro = esTemaOscuro()
 
     // Los 6 platos reales (Room/API). Si aún no cargó, usamos el seed local.
     val antojos = proteinas.take(6).map { it.nombre to it.disponible }.ifEmpty {
@@ -335,46 +332,9 @@ fun ViewHome(
                 }
             }
 
-            Spacer(Modifier.height(22.dp))
-            Text("Accesos rápidos", fontWeight = FontWeight.Black, fontSize = 18.sp)
-            Spacer(Modifier.height(10.dp))
-            FilaAcceso(glifo = "👤", texto = "Mi perfil", onClick = onPerfil)
-            if (ultimoPedido != null) {
-                FilaAcceso(glifo = "🧾", texto = "Ver mi pedido", onClick = onMiPedido)
-            }
-            FilaAcceso(glifo = "📚", texto = "Historial de pedidos", onClick = onHistorial)
-            FilaAcceso(glifo = "↪️", texto = "Cerrar sesión", onClick = onCerrarSesion)
-
+            // Los accesos rápidos (perfil, pedido, historial y cerrar sesión) ahora viven
+            // en la pestaña Perfil, como en las apps de delivery.
             Nota("Pide antes de las 12 y retira sin esperar: tu almuerzo sale en menos de 10 minutos.")
-        }
-    }
-}
-
-@Composable
-private fun FilaAcceso(glifo: String, texto: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(glifo, fontSize = 16.sp)
-            }
-            Spacer(Modifier.width(12.dp))
-            Text(texto, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text("→", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
     }
 }
@@ -447,7 +407,7 @@ private fun CategoriaChip(
     disponible: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val oscuro = isSystemInDarkTheme()
+    val oscuro = esTemaOscuro()
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Surface(
             shape = CircleShape,

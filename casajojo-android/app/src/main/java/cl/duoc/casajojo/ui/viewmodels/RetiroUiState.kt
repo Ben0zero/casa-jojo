@@ -13,6 +13,8 @@ data class RetiroUiState(
     val horaRetiro: String = "13:00",
     val formaPago: String = FormaPago.Transferencia.etiqueta,
     val indicaciones: String = "",
+    /** Billetera (simulada): id de la tarjeta elegida si la forma de pago es "Tarjeta". */
+    val tarjetaId: Long? = null,
     val errores: RetiroErrores = RetiroErrores(),
     /** true después del primer "Confirmar pedido" (validación en tiempo real). */
     val intentado: Boolean = false,

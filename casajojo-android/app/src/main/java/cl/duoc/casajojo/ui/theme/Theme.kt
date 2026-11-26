@@ -1,6 +1,17 @@
 package cl.duoc.casajojo.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Density
+import androidx.core.view.WindowCompat
+import cl.duoc.casajojo.domain.model.OpcionesAccesibilidad
+import cl.duoc.casajojo.domain.model.TemaApp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -155,15 +166,63 @@ internal val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(32.dp),
 )
 
+/**
+ * Accesibilidad: true si la app se está dibujando en oscuro. Lo usan las pantallas en vez
+ * de isSystemInDarkTheme(), porque la persona puede forzar Claro u Oscuro.
+ */
+val LocalTemaOscuro = staticCompositionLocalOf { false }
+
+/** Accesibilidad: true si la persona pidió reducir animaciones. */
+val LocalReducirAnimaciones = staticCompositionLocalOf { false }
+
+/** Atajo para preguntar el tema actual desde cualquier composable. */
+@Composable
+@ReadOnlyComposable
+fun esTemaOscuro(): Boolean = LocalTemaOscuro.current
+
+/** Atajo: duración de una animación, 0 si la persona pidió reducirlas. */
+@Composable
+@ReadOnlyComposable
+fun duracionAnimacion(ms: Int): Int = if (LocalReducirAnimaciones.current) 0 else ms
+
+/**
+ * Tema de la app con las opciones de accesibilidad de la cuenta:
+ * - Tema Sistema / Claro / Oscuro → elige la paleta y los íconos de la barra de estado.
+ * - Texto grande → multiplica fontScale por 1.15: TODO texto en sp crece, en toda la app.
+ * - Reducir animaciones → se expone en LocalReducirAnimaciones (NavHost, totales, listas).
+ */
 @Composable
 fun CasaJojoTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    opciones: OpcionesAccesibilidad = OpcionesAccesibilidad(),
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = AppTypography,
-        shapes = AppShapes,
-        content = content,
-    )
+    val oscuro = when (opciones.tema) {
+        TemaApp.SISTEMA -> isSystemInDarkTheme()
+        TemaApp.CLARO -> false
+        TemaApp.OSCURO -> true
+    }
+    // Íconos de la barra de estado y de navegación legibles sobre el fondo elegido.
+    val vista = LocalView.current
+    if (!vista.isInEditMode) {
+        SideEffect {
+            val ventana = (vista.context as? Activity)?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(ventana, vista).apply {
+                isAppearanceLightStatusBars = !oscuro
+                isAppearanceLightNavigationBars = !oscuro
+            }
+        }
+    }
+    val densidad = LocalDensity.current
+    CompositionLocalProvider(
+        LocalTemaOscuro provides oscuro,
+        LocalReducirAnimaciones provides opciones.reducirAnimaciones,
+        LocalDensity provides Density(densidad.density, densidad.fontScale * opciones.escalaTexto),
+    ) {
+        MaterialTheme(
+            colorScheme = if (oscuro) DarkColors else LightColors,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
 }

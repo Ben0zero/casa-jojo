@@ -4,7 +4,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import cl.duoc.casajojo.domain.model.EstadoPedido
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.isSystemInDarkTheme
+import cl.duoc.casajojo.ui.theme.esTemaOscuro
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -126,7 +126,7 @@ fun FotoPlato(
         }
         return
     }
-    val oscuro = isSystemInDarkTheme()
+    val oscuro = esTemaOscuro()
     val fondo = if (oscuro) {
         listOf(Color(0xFF1F4A37), Color(0xFF12301F))
     } else {
@@ -538,6 +538,9 @@ fun BarraPedido(
     }
 }
 
+/** Pestaña marcada en la barra inferior (Perfil queda marcada en todas sus subpantallas). */
+enum class PestanaNav { INICIO, MENU, PEDIDO, PERFIL }
+
 /**
  * Barra inferior de 4 ítems. Usa SOLO callbacks que ya existían: no agrega
  * rutas ni destinations nuevas, nada más visibiliza lo que ya estaba.
@@ -548,6 +551,7 @@ fun BarraNavegacion(
     onMenu: () -> Unit,
     onPedido: () -> Unit,
     onPerfil: () -> Unit,
+    activa: PestanaNav = PestanaNav.INICIO,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -563,10 +567,10 @@ fun BarraNavegacion(
         ) {
             // Cada ítem ocupa un cuarto: en pantallas angostas ninguno se corta ("Per…").
             val celda = Modifier.weight(1f).padding(horizontal = 4.dp)
-            ItemNav("🏠", "Inicio", activo = true, onClick = onInicio, modifier = celda)
-            ItemNav("🍽️", "Menú", onClick = onMenu, modifier = celda)
-            ItemNav("🧾", "Pedido", onClick = onPedido, modifier = celda)
-            ItemNav("👤", "Perfil", onClick = onPerfil, modifier = celda)
+            ItemNav("🏠", "Inicio", activo = activa == PestanaNav.INICIO, onClick = onInicio, modifier = celda)
+            ItemNav("🍽️", "Menú", activo = activa == PestanaNav.MENU, onClick = onMenu, modifier = celda)
+            ItemNav("🧾", "Pedido", activo = activa == PestanaNav.PEDIDO, onClick = onPedido, modifier = celda)
+            ItemNav("👤", "Perfil", activo = activa == PestanaNav.PERFIL, onClick = onPerfil, modifier = celda)
         }
     }
 }

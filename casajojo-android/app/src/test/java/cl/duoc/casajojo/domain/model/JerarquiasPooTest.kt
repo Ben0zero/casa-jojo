@@ -64,7 +64,8 @@ class JerarquiasPooTest {
 
     @Test
     fun `forma de pago sabe si se paga al retirar`() {
-        FormaPago.etiquetas shouldBe listOf("Transferencia", "Pagar en tienda")
+        FormaPago.etiquetas shouldBe listOf("Transferencia", "Pagar en tienda", "Tarjeta")
+        FormaPago.desde("Tarjeta").pagaAlRetirar().shouldBeFalse()
         FormaPago.desde("Pagar en tienda").pagaAlRetirar().shouldBeTrue()
         FormaPago.desde("Transferencia").pagaAlRetirar().shouldBeFalse()
         FormaPago.desde("Bitcoin") shouldBe FormaPago.Transferencia

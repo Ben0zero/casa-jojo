@@ -1,5 +1,18 @@
 package cl.duoc.casajojo.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import cl.duoc.casajojo.ui.components.BarraNavegacion
+import cl.duoc.casajojo.ui.components.PestanaNav
+import cl.duoc.casajojo.ui.screens.cliente.AccionesPerfil
+import cl.duoc.casajojo.ui.screens.cliente.ViewAccesibilidad
+import cl.duoc.casajojo.ui.screens.cliente.ViewBilletera
+import cl.duoc.casajojo.ui.screens.cliente.ViewConfiguracionCuenta
+import cl.duoc.casajojo.ui.screens.cliente.ViewPrivacidad
+import cl.duoc.casajojo.ui.screens.cliente.ViewQuienesSomos
+import cl.duoc.casajojo.ui.theme.LocalReducirAnimaciones
+import cl.duoc.casajojo.ui.viewmodels.AccesibilidadViewModel
+import cl.duoc.casajojo.ui.viewmodels.BilleteraViewModel
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -62,7 +75,10 @@ import cl.duoc.casajojo.data.local.PerfilPhotoStorage
  *              ▲  └──────(solo proteína)──────────┘  │
  *              └──────────── "Agregar otro" ─────────┘
  *
- *   home ── "Cerrar sesión" ──► login (se borra la pila de pantallas)
+ *   home ── pestaña "Perfil" / avatar ──► perfil ──► configuracion_cuenta · billetera ·
+ *                                                   privacidad · accesibilidad · quienes_somos ·
+ *                                                   historial · mi_pedido
+ *   perfil ── "Cerrar sesión" ──► login (se borra la pila de pantallas)
  *
  * Las pantallas NO navegan solas: reciben lambdas (onVolver, onContinuar…) y
  * aquí se decide a dónde lleva cada una.
@@ -79,13 +95,20 @@ fun CasaJojoApp() {
     val fotos = remember { PerfilPhotoStorage.get(context) }
     val fotoPerfil by fotos.foto.collectAsState()
 
+    // Accesibilidad: un solo ViewModel para toda la app. CasaJojoTheme aplica sus
+    // opciones (tema, texto grande, animaciones) y la pantalla Accesibilidad las cambia.
+    val accesibilidadVm: AccesibilidadViewModel = viewModel()
+    val opciones by accesibilidadVm.opciones.collectAsState()
+    // Billetera: compartida entre la pantalla Billetera y el paso Retiro y pago.
+    val billeteraVm: BilleteraViewModel = viewModel()
+
     val sesion by authVm.estadoSesion.collectAsState()
 
     // Android 17+: sin permiso de red local la app no alcanza los microservicios de
     // la PC. Al concederlo se vuelve a sincronizar el menú y los pedidos.
     PedirPermisoRedLocal(onConcedido = { clienteVm.sincronizarConServidor() })
 
-    CasaJojoTheme {
+    CasaJojoTheme(opciones = opciones) {
         // Surface pinta el fondo y define el color de texto por defecto
         // (claro u oscuro según el tema).
         Surface(
@@ -110,6 +133,7 @@ fun CasaJojoApp() {
                         }
                         NavegacionApp(
                             rememberNavController(), inicio, authVm, clienteVm, fotos, fotoPerfil,
+                            accesibilidadVm, billeteraVm,
                         )
                     }
                 }
@@ -126,9 +150,52 @@ private fun NavegacionApp(
     vm: ClienteViewModel,
     fotos: PerfilPhotoStorage,
     fotoPerfil: PerfilPhotoStorage.Foto?,
+    accesibilidadVm: AccesibilidadViewModel,
+    billeteraVm: BilleteraViewModel,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val reducir = LocalReducirAnimaciones.current
+    val tarjetas by billeteraVm.tarjetas.collectAsState()
+    val usuario by vm.usuario.collectAsState()
+
+    /** Cerrar sesión: borra la sesión de DataStore y deja SOLO el login en la pila. */
+    fun cerrarSesion() = authVm.cerrarSesion {
+        vm.limpiarTodo() // descarta el carrito del usuario anterior
+        nav.navigate(AppRoutes.Login.route) {
+            popUpTo(nav.graph.id) { inclusive = true }
+        }
+    }
+
+    /** Ir a una pestaña de la barra inferior sin apilar copias de la misma pantalla. */
+    fun irAPestana(ruta: String) {
+        if (!nav.popBackStack(ruta, false)) {
+            nav.navigate(ruta) { launchSingleTop = true }
+        }
+    }
+
+    /** Barra inferior con "Perfil" marcado: se usa en el Perfil y en todas sus subpantallas. */
+    val barraPerfil: @Composable () -> Unit = {
+        BarraNavegacion(
+            onInicio = { nav.popBackStack(AppRoutes.Home.route, false) },
+            onMenu = { nav.navigate(AppRoutes.Proteina.route) },
+            onPedido = { irAPestana(AppRoutes.MiPedido.route) },
+            onPerfil = { irAPestana(AppRoutes.Perfil.route) },
+            activa = PestanaNav.PERFIL,
+        )
+    }
+
+    /**
+     * "Volver" de Mi pedido / Historial: si se llegó desde el Perfil, vuelve al Perfil;
+     * si no, a la portada (comportamiento de siempre).
+     */
+    fun volverDesdePedidos() {
+        if (nav.previousBackStackEntry?.destination?.route == AppRoutes.Perfil.route) {
+            nav.popBackStack()
+        } else {
+            nav.popBackStack(AppRoutes.Home.route, false)
+        }
+    }
 
     /** Ir al inicio borrando todo lo anterior (el botón atrás ya no vuelve al login). */
     fun irAlInicioLimpiando() = nav.navigate(AppRoutes.Home.route) {
@@ -142,15 +209,18 @@ private fun NavegacionApp(
         // ANIMACIONES: transición entre pantallas del flujo.
         // Avanzar → la pantalla nueva entra deslizándose desde la derecha.
         // Volver  → sale deslizándose hacia la derecha (sensación de "atrás").
+        // Accesibilidad: con "Reducir animaciones" las pantallas cambian sin transición.
         enterTransition = {
-            slideInHorizontally(
+            if (reducir) EnterTransition.None
+            else slideInHorizontally(
                 animationSpec = spring(dampingRatio = 0.8f, stiffness = 320f),
             ) { it / 6 } + fadeIn(tween(240))
         },
-        exitTransition = { fadeOut(tween(150)) },
-        popEnterTransition = { fadeIn(tween(200)) },
+        exitTransition = { if (reducir) ExitTransition.None else fadeOut(tween(150)) },
+        popEnterTransition = { if (reducir) EnterTransition.None else fadeIn(tween(200)) },
         popExitTransition = {
-            slideOutHorizontally(
+            if (reducir) ExitTransition.None
+            else slideOutHorizontally(
                 animationSpec = spring(dampingRatio = 0.85f, stiffness = 340f),
             ) { it / 6 } + fadeOut(tween(200))
         },
@@ -195,29 +265,16 @@ private fun NavegacionApp(
                 vm = vm,
                 onComenzar = { nav.navigate(AppRoutes.Proteina.route) },
                 onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
-                onHistorial = { nav.navigate(AppRoutes.Historial.route) },
-                onPerfil = { nav.navigate(AppRoutes.Perfil.route) },
+                onPerfil = { nav.navigate(AppRoutes.Perfil.route) { launchSingleTop = true } },
                 fotoPerfil = fotoPerfil,
-                onCerrarSesion = {
-                    authVm.cerrarSesion {
-                        vm.limpiarTodo() // descarta el carrito del usuario anterior
-                        nav.navigate(AppRoutes.Login.route) {
-                            popUpTo(nav.graph.id) { inclusive = true }
-                        }
-                    }
-                },
             )
         }
 
+        // ---------- PERFIL (estilo Uber) Y SUS SUBPANTALLAS ----------
+
         composable(AppRoutes.Perfil.route) {
-            // EFT: un PerfilViewModel por visita a la pantalla (se refresca desde ms-auth).
-            val perfilVm: PerfilViewModel = viewModel()
-            // Se recuerda la foto de esta cuenta: al eliminarla, la sesión (y el StateFlow)
-            // pasan a null antes del callback, pero la foto igual debe borrarse del teléfono.
-            val fotoDeLaCuenta = remember { mutableStateOf<PerfilPhotoStorage.Foto?>(null) }
-            if (fotoPerfil != null) fotoDeLaCuenta.value = fotoPerfil
             ViewPerfil(
-                vm = perfilVm,
+                usuario = usuario,
                 foto = fotoPerfil,
                 uriCaptura = {
                     FileProvider.getUriForFile(
@@ -229,6 +286,30 @@ private fun NavegacionApp(
                 onFotoTomada = { onResultado ->
                     scope.launch { onResultado(fotos.guardarCaptura()) }
                 },
+                onCerrarSesion = { cerrarSesion() },
+                acciones = AccionesPerfil(
+                    onConfiguracion = { nav.navigate(AppRoutes.ConfiguracionCuenta.route) },
+                    onHistorial = { nav.navigate(AppRoutes.Historial.route) },
+                    onMiPedido = { nav.navigate(AppRoutes.MiPedido.route) },
+                    onBilletera = { nav.navigate(AppRoutes.Billetera.route) },
+                    onPrivacidad = { nav.navigate(AppRoutes.Privacidad.route) },
+                    onAccesibilidad = { nav.navigate(AppRoutes.Accesibilidad.route) },
+                    onQuienesSomos = { nav.navigate(AppRoutes.QuienesSomos.route) },
+                ),
+                barra = barraPerfil,
+            )
+        }
+
+        // Datos, contraseña y eliminar cuenta (misma lógica que antes, contra ms-auth).
+        composable(AppRoutes.ConfiguracionCuenta.route) {
+            // EFT: un PerfilViewModel por visita a la pantalla (se refresca desde ms-auth).
+            val perfilVm: PerfilViewModel = viewModel()
+            // Se recuerda la foto de esta cuenta: al eliminarla, la sesión (y el StateFlow)
+            // pasan a null antes del callback, pero la foto igual debe borrarse del teléfono.
+            val fotoDeLaCuenta = remember { mutableStateOf<PerfilPhotoStorage.Foto?>(null) }
+            if (fotoPerfil != null) fotoDeLaCuenta.value = fotoPerfil
+            ViewConfiguracionCuenta(
+                vm = perfilVm,
                 onVolver = { nav.popBackStack() },
                 onCuentaEliminada = {
                     fotoDeLaCuenta.value?.let { scope.launch { fotos.borrar(it) } }
@@ -237,7 +318,30 @@ private fun NavegacionApp(
                         popUpTo(nav.graph.id) { inclusive = true }
                     }
                 },
+                barra = barraPerfil,
             )
+        }
+
+        composable(AppRoutes.Billetera.route) {
+            ViewBilletera(vm = billeteraVm, onVolver = { nav.popBackStack() }, barra = barraPerfil)
+        }
+
+        composable(AppRoutes.Privacidad.route) {
+            ViewPrivacidad(
+                tieneFoto = fotoPerfil != null,
+                onEliminarFoto = { fotoPerfil?.let { scope.launch { fotos.borrar(it) } } },
+                onEliminarCuenta = { nav.navigate(AppRoutes.ConfiguracionCuenta.route) },
+                onVolver = { nav.popBackStack() },
+                barra = barraPerfil,
+            )
+        }
+
+        composable(AppRoutes.Accesibilidad.route) {
+            ViewAccesibilidad(vm = accesibilidadVm, onVolver = { nav.popBackStack() }, barra = barraPerfil)
+        }
+
+        composable(AppRoutes.QuienesSomos.route) {
+            ViewQuienesSomos(onVolver = { nav.popBackStack() }, barra = barraPerfil)
         }
 
         // PASO 1 — Proteína. Plato normal → Acompañamientos; "solo proteína" → Carrito.
@@ -278,6 +382,8 @@ private fun NavegacionApp(
         composable(AppRoutes.Retiro.route) {
             ViewRetiro(
                 vm = vm,
+                tarjetas = tarjetas,
+                onIrBilletera = { nav.navigate(AppRoutes.Billetera.route) },
                 onVolver = { nav.popBackStack() },
                 onConfirmar = {
                     vm.confirmarPedido {
@@ -303,7 +409,7 @@ private fun NavegacionApp(
         composable(AppRoutes.MiPedido.route) {
             ViewMiPedido(
                 vm = vm,
-                onVolver = { nav.popBackStack(AppRoutes.Home.route, false) },
+                onVolver = { volverDesdePedidos() },
                 onCart = { nav.navigate(AppRoutes.Carrito.route) },
                 onEmpezar = { nav.popBackStack(AppRoutes.Home.route, false) },
                 onHistorial = { nav.navigate(AppRoutes.Historial.route) },
@@ -314,7 +420,7 @@ private fun NavegacionApp(
         composable(AppRoutes.Historial.route) {
             ViewHistorial(
                 vm = vm,
-                onVolver = { nav.popBackStack(AppRoutes.Home.route, false) },
+                onVolver = { volverDesdePedidos() },
                 onCart = { nav.navigate(AppRoutes.Carrito.route) },
             )
         }

@@ -11,6 +11,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import cl.duoc.casajojo.data.local.dao.PedidoDao
 import cl.duoc.casajojo.data.local.dao.ProductoDao
 import cl.duoc.casajojo.data.local.dao.UsuarioDao
+import cl.duoc.casajojo.data.local.dao.TarjetaDao
+import cl.duoc.casajojo.data.local.entity.Tarjeta
 import cl.duoc.casajojo.data.local.entity.Pedido
 import cl.duoc.casajojo.data.local.entity.Plato
 import cl.duoc.casajojo.data.local.entity.Producto
@@ -26,10 +28,11 @@ import kotlinx.coroutines.launch
  * Versión 2: + tabla usuarios y columna pedidos.usuarioId (login).
  * Versión 3: + columnas pedidos.remotoId y pedidos.referencia (A4 / M9: envío
  *            pendiente y vínculo con ms-ventas sin depender del número).
+ * Versión 4: + tabla tarjetas (Billetera simulada: solo marca, últimos 4 y vencimiento).
  */
 @Database(
-    entities = [Producto::class, Pedido::class, Plato::class, Usuario::class],
-    version = 3,
+    entities = [Producto::class, Pedido::class, Plato::class, Usuario::class, Tarjeta::class],
+    version = CasaJojoDatabase.VERSION,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -37,8 +40,12 @@ abstract class CasaJojoDatabase : RoomDatabase() {
     abstract fun productoDao(): ProductoDao
     abstract fun pedidoDao(): PedidoDao
     abstract fun usuarioDao(): UsuarioDao
+    abstract fun tarjetaDao(): TarjetaDao
 
     companion object {
+        /** Versión actual del esquema. Subirla exige agregar su Migration en [MIGRACIONES]. */
+        const val VERSION = 4
+
         @Volatile
         private var INSTANCE: CasaJojoDatabase? = null
 
@@ -82,6 +89,36 @@ abstract class CasaJojoDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * MIGRACIÓN 3 → 4 (Billetera). Solo CREA la tabla nueva: no toca pedidos, platos,
+         * productos ni usuarios, así que nadie pierde datos al actualizar la app.
+         * El SQL calza EXACTO con Tarjeta.kt (Room lo compara al abrir la base):
+         * Long/Int/Boolean → INTEGER NOT NULL, String → TEXT NOT NULL, índice por usuarioId.
+         * SEGURIDAD: no hay columnas para el número completo ni para el CVV.
+         */
+        val MIGRACION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `tarjetas` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`usuarioId` INTEGER NOT NULL, " +
+                        "`marca` TEXT NOT NULL, " +
+                        "`ultimos4` TEXT NOT NULL, " +
+                        "`titular` TEXT NOT NULL, " +
+                        "`mesVencimiento` INTEGER NOT NULL, " +
+                        "`anioVencimiento` INTEGER NOT NULL, " +
+                        "`alias` TEXT NOT NULL, " +
+                        "`predeterminada` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_tarjetas_usuarioId` ON `tarjetas` (`usuarioId`)"
+                )
+            }
+        }
+
+        /** Cadena completa 1 → 2 → 3 → 4 (la prueba unitaria revisa que no falte ningún salto). */
+        val MIGRACIONES: Array<Migration> by lazy { arrayOf(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4) }
+
         fun get(context: Context): CasaJojoDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -89,7 +126,8 @@ abstract class CasaJojoDatabase : RoomDatabase() {
                     CasaJojoDatabase::class.java,
                     "casa_jojo.db",
                 )
-                    .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
+                    // Sin fallbackToDestructiveMigration: cada versión se migra con SQL propio.
+                    .addMigrations(*MIGRACIONES)
                     // Siembra el menú solo la primera vez que se crea la base.
                     .addCallback(SembrarMenu)
                     .build()

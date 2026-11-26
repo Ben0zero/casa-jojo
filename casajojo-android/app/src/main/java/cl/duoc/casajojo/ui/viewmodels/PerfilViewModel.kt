@@ -55,7 +55,11 @@ class PerfilViewModel @JvmOverloads constructor(
         AuthRepository(
             usuarios = db.usuarioDao(),
             sesion = SesionPreferences(app),
-            pedidosDelUsuario = { id -> db.pedidoDao().borrarDelUsuario(id) },
+            // Al eliminar la cuenta se borran sus pedidos y sus tarjetas de la Billetera.
+            pedidosDelUsuario = { id ->
+                db.pedidoDao().borrarDelUsuario(id)
+                db.tarjetaDao().borrarDelUsuario(id)
+            },
         )
     },
 ) : AndroidViewModel(app) {

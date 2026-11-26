@@ -51,6 +51,8 @@ fun CampoTexto(
     enabled: Boolean = true,
     onListo: (() -> Unit)? = null,
     icono: String? = null,
+    /** Formato solo visual (por ejemplo, grupos de 4 en la tarjeta); el valor guardado no cambia. */
+    transformacion: VisualTransformation = VisualTransformation.None,
 ) {
     // rememberSaveable: "Mostrar contraseña" se mantiene aunque se gire el teléfono.
     var visible by rememberSaveable { mutableStateOf(false) }
@@ -86,10 +88,11 @@ fun CampoTexto(
         visualTransformation = if (esContrasena && !visible) {
             PasswordVisualTransformation()
         } else {
-            VisualTransformation.None
+            transformacion
         },
         keyboardOptions = KeyboardOptions(
-            keyboardType = if (esContrasena) KeyboardType.Password else tipoTeclado,
+            // Contraseña de texto → teclado Password; un PIN/CVV puede pedir NumberPassword.
+            keyboardType = if (esContrasena && tipoTeclado == KeyboardType.Text) KeyboardType.Password else tipoTeclado,
             imeAction = accionIme,
         ),
         keyboardActions = KeyboardActions(onDone = { onListo?.invoke() }),

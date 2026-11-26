@@ -25,8 +25,17 @@ sealed class FormaPago(val etiqueta: String) {
         override fun descripcion() = "Pagas en el local al escanear el QR de retiro"
     }
 
+    /**
+     * Billetera (SIMULADA): pago con una tarjeta guardada. No se cobra nada real; a
+     * ms-ventas viaja solo la etiqueta "Tarjeta", igual que las otras formas de pago.
+     */
+    data object Tarjeta : FormaPago("Tarjeta") {
+        override fun pagaAlRetirar() = false
+        override fun descripcion() = "Pago simulado con una tarjeta de tu Billetera"
+    }
+
     companion object {
-        val todas: List<FormaPago> by lazy { listOf(Transferencia, PagarEnTienda) }
+        val todas: List<FormaPago> by lazy { listOf(Transferencia, PagarEnTienda, Tarjeta) }
 
         /** Etiquetas en el orden en que se muestran los chips. */
         val etiquetas: List<String> get() = todas.map { it.etiqueta }

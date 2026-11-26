@@ -25,4 +25,11 @@ sealed class AppRoutes(val route: String) {
     data object MiPedido : AppRoutes("mi_pedido")
     data object Historial : AppRoutes("historial")
     data object Perfil : AppRoutes("perfil")
+
+    // Subpantallas del Perfil (estilo Uber). La pestaña "Perfil" queda marcada en todas.
+    data object ConfiguracionCuenta : AppRoutes("configuracion_cuenta")
+    data object Billetera : AppRoutes("billetera")
+    data object Privacidad : AppRoutes("privacidad")
+    data object Accesibilidad : AppRoutes("accesibilidad")
+    data object QuienesSomos : AppRoutes("quienes_somos")
 }

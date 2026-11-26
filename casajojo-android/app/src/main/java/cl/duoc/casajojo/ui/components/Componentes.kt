@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.components
 
+import cl.duoc.casajojo.ui.theme.duracionAnimacion
 import androidx.compose.foundation.text.TextAutoSize
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -61,7 +62,7 @@ fun PasoBar(paso: Int) {
             val activo = paso >= i + 1
             val colorBarra by animateColorAsState(
                 targetValue = if (activo) Ac else MaterialTheme.colorScheme.outline,
-                animationSpec = tween(320),
+                animationSpec = tween(duracionAnimacion(320)), // accesibilidad: 0 ms si se reducen
                 label = "colorPaso$i",
             )
             Column(
@@ -405,7 +406,7 @@ fun TotalAnimado(
     fontWeight: FontWeight = FontWeight.Bold,
     color: Color = Color.Unspecified,
 ) {
-    val animado by animateIntAsState(valor, animationSpec = tween(400), label = "total")
+    val animado by animateIntAsState(valor, animationSpec = tween(duracionAnimacion(400)), label = "total")
     Text(
         animado.money(),
         modifier = modifier,

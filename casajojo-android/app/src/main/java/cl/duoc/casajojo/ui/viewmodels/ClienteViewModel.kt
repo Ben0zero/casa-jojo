@@ -1,5 +1,6 @@
 package cl.duoc.casajojo.ui.viewmodels
 
+import cl.duoc.casajojo.domain.model.FormaPago
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,10 @@ data class NutricionUiState(
     val datos: NutricionPlato? = null,
     val error: String? = null,
 )
+
+
+/** Billetera: mensaje cuando se elige "Tarjeta" sin tener una seleccionada. */
+const val MSG_SIN_TARJETA = "Elige una tarjeta de tu Billetera o cambia la forma de pago"
 
 /**
  * ViewModel único del flujo del cliente. Lo comparten todas las pantallas
@@ -344,7 +349,14 @@ class ClienteViewModel(
     }
 
     fun onFormaPago(v: String) {
-        retiro = retiro.copy(formaPago = v)
+        // Si deja de pagar con tarjeta, se olvida la tarjeta elegida.
+        val tarjeta = if (FormaPago.desde(v) == FormaPago.Tarjeta) retiro.tarjetaId else null
+        retiro = retiro.copy(formaPago = v, tarjetaId = tarjeta)
+    }
+
+    /** Billetera (simulada): tarjeta guardada con la que se "paga" el pedido. */
+    fun onTarjeta(id: Long?) {
+        retiro = retiro.copy(tarjetaId = id)
     }
 
     fun onIndicaciones(v: String) {
@@ -378,6 +390,12 @@ class ClienteViewModel(
         // B7: no se aceptan horas de retiro que ya pasaron.
         ReglasPedido.validarHoraRetiro(retiro.horaRetiro, ahora())?.let {
             error = it
+            return
+        }
+        // Billetera: con "Tarjeta" debe haber una tarjeta elegida. El pago sigue siendo
+        // simulado: a ms-ventas solo viaja la forma de pago "Tarjeta", como siempre.
+        if (FormaPago.desde(retiro.formaPago) == FormaPago.Tarjeta && retiro.tarjetaId == null) {
+            error = MSG_SIN_TARJETA
             return
         }
         val datos = retiro
