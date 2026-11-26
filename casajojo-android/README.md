@@ -5,7 +5,8 @@ App Android de La Casa JoJo SpA (Duoc UC, ERS v1.1).
 
 Funcionalidades, endpoints, **permisos**, almacenamiento local vs. externo, POO y cobertura
 están en el [README principal](../README.md). La guía de la presentación está en
-[docs/DEMO.md](../docs/DEMO.md) y la guía de estudio en [docs/GUIA_DEFENSA.md](docs/GUIA_DEFENSA.md).
+[docs/DEMO.md](../docs/DEMO.md), la instalación desde cero en [docs/INSTALACION.md](../docs/INSTALACION.md)
+y la guía de estudio en [docs/GUIA_DEFENSA.md](docs/GUIA_DEFENSA.md).
 
 ## Requisitos
 

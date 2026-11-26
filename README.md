@@ -6,6 +6,10 @@ Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 
 **Integrantes:** Nicolás Arancibia, Pablo Gómez y Benjamin González.
 
+> **¿Primera vez?** Instalación y ejecución paso a paso en un PC con Windows (requisitos,
+> `.env`, wallet, Docker, Android Studio, celular y solución de problemas):
+> **[docs/INSTALACION.md](docs/INSTALACION.md)**.
+
 | Componente | Carpeta | Tecnología |
 |---|---|---|
 | App del cliente (única vista: **cliente**) | `casajojo-android` | Kotlin, Jetpack Compose, MVVM, Room, DataStore, Retrofit |
@@ -29,7 +33,7 @@ Proyecto Duoc UC (ERS *La Casa JoJo v1.1*), Evaluación Final Transversal.
 
 **Pedido**
 - Armado paso a paso: proteína → acompañamientos (o "solo proteína" a $3.000) → carrito → retiro y pago.
-- Hora de retiro (solo horarios que aún no pasan) y forma de pago (Transferencia / Pagar en tienda).
+- Hora de retiro (solo horarios que aún no pasan) y forma de pago (Transferencia / Pagar en tienda / **Tarjeta** simulada de la Billetera).
 - **Mi pedido**: estado sincronizado con ms-ventas; **cancelar** dentro de 15 s (RF-13) y **editar** nombre, hora, forma de pago e indicaciones mientras siga *Recibido* (RF-12).
 - **Retiro con QR** de la tienda (`casajojo://retiro?codigo=...`): el pedido queda Entregado y Pagado.
 - **Historial** de pedidos entregados y cancelados.
@@ -120,6 +124,9 @@ Swagger de cada servicio: `http://localhost:<puerto>/swagger-ui.html`.
 ---
 
 ## Cómo ejecutar
+
+Resumen para quien ya tiene todo instalado. Desde cero (requisitos, wallet, firewall y
+problemas comunes): **[docs/INSTALACION.md](docs/INSTALACION.md)**.
 
 ### 1. Configurar el `.env`
 

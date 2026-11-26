@@ -1,7 +1,8 @@
 # Demo de La Casa JoJo — paso a paso para la presentación
 
 Guion para mostrar la app en un **celular real** conectado al notebook que corre los
-microservicios con Docker. Al final hay un **plan B con el emulador**.
+microservicios con Docker. Al final hay un **plan B con el emulador**. Si el PC es nuevo,
+primero sigue [INSTALACION.md](INSTALACION.md).
 
 > Requisitos en el notebook: Docker Desktop, JDK 17+ (para Gradle), Android SDK
 > (`adb`), el `.env` de la raíz completo (ver `.env.example`) y el wallet de Oracle en

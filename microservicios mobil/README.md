@@ -30,7 +30,10 @@ en cada módulo con las variables del `.env` cargadas.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | no | Envío del código de recuperación. Sin `SMTP_HOST`, ms-auth usa **modo log** (escribe el código en la consola) |
 
 Cuentas de demostración que siembra ms-auth: `cliente@casajojo.cl` / `Cliente123` y
-`cocina@casajojo.cl` / `Cocina123` (rol COCINA, para avanzar pedidos en la demo).
+`cocina@casajojo.cl` / `Cocina123` (rol COCINA, para avanzar pedidos en la demo). También crea
+`admin@casajojo.cl` (rol ADMIN), que la app no usa. Todas son contraseñas **de
+demostración** definidas en `casajojo-ms-auth/.../config/DataInitializer.java`: en un
+despliegue real hay que cambiarlas o quitar esa siembra.
 
 ## Recuperación de contraseña (ms-auth)
 

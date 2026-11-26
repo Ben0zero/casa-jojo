@@ -254,6 +254,8 @@ Archivo: `app/src/main/AndroidManifest.xml`.
 | Retiro | Nombre no vacío; hora que aún no pasa (`HORAS_RETIRO` 12:00–15:00) | `ReglasPedido.validarRetiro()`, `validarHoraRetiro()`, `horasDisponibles()` |
 | Editar pedido | Solo *Recibido*; nombre no vacío | `ReglasPedido.validarEdicion()` |
 | QR | Solo `casajojo://retiro?codigo=…` y pedido *Listo* | `QrRetiro.codigo()`, `ReglasPedido.puedeRetirarConQr()` |
+| Retiro con "Tarjeta" | Debe haber una tarjeta elegida | `ClienteViewModel.confirmarPedido()` → `MSG_SIN_TARJETA` |
+| Billetera | 13–19 dígitos con Luhn; marca; MM/AA no vencido; CVV 3 dígitos (4 Amex); titular solo letras y espacios | `domain/usecase/ValidacionesTarjeta.kt → validar()` |
 
 Patrón: cada formulario tiene `XxxErrores` + `intentado`; antes del primer envío no se marcan errores, después cada setter revalida su campo. `ui/components/Campos.kt → CampoTexto()` muestra borde rojo, mensaje y ⚠, o ✓ verde. Los errores del servidor llegan como `CasaJojoException.mensajeUsuario` (`data/remote/ErroresRemotos.kt`).
 

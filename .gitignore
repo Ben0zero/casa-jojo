@@ -10,6 +10,13 @@
 # Java / Maven
 **/target/
 **/OracleWallet/
+# Wallet de Oracle Cloud: nunca se versiona (se copia aparte, ver docs/INSTALACION.md).
+**/Wallet_*/
+cwallet.sso
+ewallet.p12
+ewallet.pem
+tnsnames.ora
+sqlnet.ora
 
 # Node / Vite
 **/node_modules/
