@@ -6,6 +6,7 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,14 +26,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import cl.duoc.casajojo.ui.theme.Ac
+import cl.duoc.casajojo.R
 import cl.duoc.casajojo.ui.theme.Gold
 
 /**
- * Barra superior con el sello "CJ" y un acceso rápido al carrito.
+ * Barra superior con el logo de La Casa JoJo y un acceso rápido al carrito.
  * Mantiene la misma firma para no tocar ninguna pantalla.
  */
 @Composable
@@ -46,23 +49,12 @@ fun BarraSuperior(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                shape = RoundedCornerShape(13.dp),
-                color = Ac,
-                shadowElevation = 4.dp,
-            ) {
-                Box(
-                    Modifier.size(42.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "CJ",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 18.sp,
-                    )
-                }
-            }
+            Image(
+                painter = painterResource(R.drawable.casa_jojo_logo),
+                contentDescription = "Logo de La Casa JoJo",
+                modifier = Modifier.size(42.dp),
+                contentScale = ContentScale.Fit,
+            )
             Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(
                     "LA CASA",
